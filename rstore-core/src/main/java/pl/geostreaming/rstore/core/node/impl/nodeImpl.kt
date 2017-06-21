@@ -23,8 +23,9 @@ open class RsNodeActorImpl:RsNodeActor(){
     lateinit var cfg:RsClusterDef;
 
     @Local
-    fun init(id:Int, cfg: RsClusterDef, dbLocation:String) {
-        this.cfg = cfg;
+    open fun init(id:Int, cfg1: RsClusterDef, dbLocation:String) {
+        this.cfg = cfg1;
+        println("initialized, cfg=" + cfg)
         prepare(dbLocation);
     }
 
@@ -52,7 +53,7 @@ open class RsNodeActorImpl:RsNodeActor(){
 
     }
 
-    override fun test1(test:String): IPromise<String> {
+    open override fun test1(test:String): IPromise<String> {
         val pr = Promise<String>();
 
         pr.resolve("abc")
@@ -60,7 +61,7 @@ open class RsNodeActorImpl:RsNodeActor(){
         return pr;
     }
 
-    override fun cfg(): IPromise<RsClusterDef> {
+    open override fun cfg(): IPromise<RsClusterDef> {
         val ret= Promise<RsClusterDef>();
         ret.resolve(cfg);
         return ret;

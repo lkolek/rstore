@@ -53,8 +53,11 @@ class TestActor {
         val con = TCPConnectable(RsNodeActorImpl::class.java, "localhost", port).serType(enc);
         val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
 
-        val cfg = actRem.cfg().await();
-        println("cfg:" + cfg);
+        val cfg = act.cfg().await();
+        println("cfg local:" + cfg);
+
+        val cfg2 = actRem.cfg().await();
+        println("cfg:" + cfg2);
 
         val x = actRem.test1("abc").await();
         println("X:" + x);

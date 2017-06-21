@@ -1,5 +1,6 @@
 package pl.geostreaming.rstore.core.model
 
+import java.io.Serializable
 import java.nio.ByteBuffer
 import java.nio.LongBuffer
 import java.security.MessageDigest
@@ -18,8 +19,8 @@ data class RsClusterDef private constructor(
         val rf:Int = 1,
         val minRepl:Int = 1,
         val replSlotSize:Int = 1013
-) {
-
+):Serializable
+{
     init {
         if(HashSet(nodes.map { it.id }).size < nodes.size
             || HashSet(nodes.map { it.addr }).size < nodes.size
@@ -74,7 +75,7 @@ data class RsClusterDef private constructor(
     }
 
 }
-data class RsNodeDef(val id: Int, val addr: String)
+data class RsNodeDef(val id: Int, val addr: String):Serializable
 
 
 
