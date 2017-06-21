@@ -30,3 +30,12 @@ client / replication / guarantees
 - based on that, client insert object to any of cluster nodes responsible for particular hash
     - if RF is required, client can wait for replication to be acknowledged or insert object to required number of responsible replicas
 - in case of failure, client should retry operation. Inserting is idempotent.
+
+todo
+-----
+- [x] basic cluster conf
+- [x] hash (objectId)
+- [x] objectid to slot
+- [ ] slot to replica
+- [ ] node storage
+- [ ] node object changes protocol / stream
