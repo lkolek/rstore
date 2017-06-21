@@ -3,7 +3,7 @@ rstore: replicated object store
 
 currently in alpha stage
 
-------------
+------
 
 rstore provides simple to install, embedable, replicated store functionality.
 This is object store with following capabilities:
