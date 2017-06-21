@@ -19,6 +19,16 @@ import org.nustaq.kontraktor.remoting.tcp.TCPConnectable
 
 class TestActor {
 
+    val clDef = RsClusterDef.Builder()
+            .withNode(1,"localhost:4001")
+            .withNode(2,"localhost:4002")
+            .withNode(3,"localhost:4003")
+            .withNode(4,"localhost:4004")
+            .withNode(5,"localhost:4005")
+            .withReplicationFactor(2)
+            .withSlotSize(50)
+            .build();
+
     @Test
     fun test1() {
         val act = Actors.AsActor(RsNodeActorImpl::class.java)
@@ -32,7 +42,7 @@ class TestActor {
     @Test
     fun test2() {
         val act = Actors.AsActor(RsNodeActorImpl::class.java)
-
+        act.init(1,clDef,"../data/tmp.db")
         val port = 4001;
         val enc = SerializerType.FSTSer;
 
@@ -43,6 +53,8 @@ class TestActor {
         val con = TCPConnectable(RsNodeActorImpl::class.java, "localhost", port).serType(enc);
         val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
 
+        val cfg = actRem.cfg().await();
+        println("cfg:" + cfg);
 
         val x = actRem.test1("abc").await();
         println("X:" + x);

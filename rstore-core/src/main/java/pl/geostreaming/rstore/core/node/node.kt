@@ -20,6 +20,7 @@ import pl.geostreaming.rstore.core.model.RsClusterDef
 open class RsNodeActor : Actor<RsNodeActor>() {
 
     open fun test1(test:String):IPromise<String> {  return Actors.reject(RuntimeException("UNIMPLEMENTED")); }
+    open fun cfg():IPromise<RsClusterDef> {  return Actors.reject(RuntimeException("UNIMPLEMENTED")); }
 
 }
 

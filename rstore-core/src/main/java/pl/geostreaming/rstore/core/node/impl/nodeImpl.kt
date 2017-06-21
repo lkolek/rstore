@@ -20,9 +20,11 @@ open class RsNodeActorImpl:RsNodeActor(){
             val seq2id:BTreeMap<Long,ByteArray>
     );
     var store:Store? = null;
+    lateinit var cfg:RsClusterDef;
 
     @Local
     fun init(id:Int, cfg: RsClusterDef, dbLocation:String) {
+        this.cfg = cfg;
         prepare(dbLocation);
     }
 
@@ -30,7 +32,7 @@ open class RsNodeActorImpl:RsNodeActor(){
         val db =DBMaker.fileDB(dbLocation)
                 .closeOnJvmShutdown()
                 .fileMmapEnableIfSupported()
-                .checksumStoreEnable()
+//                .checksumStoreEnable()
                 .transactionEnable()
                 .make();
 
@@ -56,5 +58,11 @@ open class RsNodeActorImpl:RsNodeActor(){
         pr.resolve("abc")
 
         return pr;
+    }
+
+    override fun cfg(): IPromise<RsClusterDef> {
+        val ret= Promise<RsClusterDef>();
+        ret.resolve(cfg);
+        return ret;
     }
 }
