@@ -1,6 +1,10 @@
 rstore: replicated object store
 ====================================
 
+currently in alpha stage
+
+------------
+
 rstore provides simple to install, embedable, replicated store functionality.
 This is object store with following capabilities:
 - Append - only,
@@ -39,3 +43,13 @@ todo
 - [ ] slot to replica
 - [ ] node storage
 - [ ] node object changes protocol / stream
+
+license
+----
+
+TBD: license files
+
+Dual licensing model: Apache 2 License or LGPL v. 3
+
+Please be noted that some of dependecies uses LGPL license model.
+
