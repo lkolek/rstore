@@ -8,9 +8,11 @@ import pl.geostreaming.rstore.core.node.RsNodeActor
 import pl.geostreaming.rstore.core.node.impl.RsNodeActorImpl
 import org.nustaq.kontraktor.remoting.tcp.TCPNIOPublisher
 import org.nustaq.kontraktor.remoting.tcp.TCPConnectable
-
-
-
+import org.nustaq.kontraktor.remoting.websockets.WebSocketConnectable
+import org.nustaq.kontraktor.remoting.websockets.WebSocketPublisher
+import pl.geostreaming.rstore.core.util.toHexString
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 
 
 /**
@@ -46,7 +48,7 @@ class TestActor {
         val port = 4001;
         val enc = SerializerType.FSTSer;
 
-        TCPNIOPublisher(act, port)
+        val pp = TCPNIOPublisher(act, port)
                 .serType(enc)
                 .publish().await();
 
@@ -62,7 +64,52 @@ class TestActor {
         val x = actRem.test1("abc").await();
         println("X:" + x);
 
+        actRem.close();
         act.stop();
+        pp.close().await()
+    }
 
+    @Test
+    fun test3() {
+        val act = Actors.AsActor(RsNodeActorImpl::class.java)
+        act.init(1,clDef,"../data/tmp2.db")
+        val port = 4001;
+        val enc = SerializerType.FSTSer;
+
+        /*
+        val pp = TCPNIOPublisher(act, port)
+                .serType(enc)
+                .publish().await();
+
+        val con = TCPConnectable(RsNodeActorImpl::class.java, "localhost", port).serType(enc);
+        val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
+        */
+
+        val pp = WebSocketPublisher(act,"localhost","/xx",4001)
+                .serType(enc)
+                .publish().await();
+        val con = WebSocketConnectable(RsNodeActorImpl::class.java, "http://localhost:4001/xx").serType(enc);
+        val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
+
+        println("inserting -------------")
+
+        val ac = AtomicInteger()
+        (0..1000).forEach {
+            x -> try{
+//                actRem.put(("abc" + x +"test").toByteArray(),true).await();
+                act.put(("abc" + x +"test").toByteArray(),true).await();
+            } catch (ex:Exception ){
+                println("x failed:"+x + " - " + ex.message)
+            }
+        }
+
+        println("queryIds -------------")
+        actRem.queryNewIds(0,1000).await().ids.forEachIndexed{ i,x -> println(""+i+ ":" + x.toHexString())}
+
+        println("stop -----------")
+
+        actRem.close();
+        act.stop();
+        pp.close().await()
     }
 }

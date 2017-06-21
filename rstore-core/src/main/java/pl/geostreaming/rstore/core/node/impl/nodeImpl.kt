@@ -5,7 +5,10 @@ import org.mapdb.serializer.SerializerCompressionWrapper
 import org.nustaq.kontraktor.IPromise
 import org.nustaq.kontraktor.Promise
 import org.nustaq.kontraktor.annotations.Local
+import pl.geostreaming.rstore.core.model.RsCluster
 import pl.geostreaming.rstore.core.model.RsClusterDef
+import pl.geostreaming.rstore.core.node.IdList
+import pl.geostreaming.rstore.core.node.NotThisNode
 import pl.geostreaming.rstore.core.node.RsNodeActor
 
 /**
@@ -19,12 +22,20 @@ open class RsNodeActorImpl:RsNodeActor(){
             val seq:Atomic.Long,
             val seq2id:BTreeMap<Long,ByteArray>
     );
-    var store:Store? = null;
+    lateinit var id:Integer;
+    lateinit var store:Store;
     lateinit var cfg:RsClusterDef;
+    lateinit var cl: RsCluster;
+
+    var delCommit = false;
+    var lastCommitPr: IPromise<Void>? = null;
 
     @Local
     open fun init(id:Int, cfg1: RsClusterDef, dbLocation:String) {
         this.cfg = cfg1;
+        this.id = Integer(id);
+        this.cl = RsCluster(cfg1);
+
         println("initialized, cfg=" + cfg)
         prepare(dbLocation);
     }
@@ -66,4 +77,67 @@ open class RsNodeActorImpl:RsNodeActor(){
         ret.resolve(cfg);
         return ret;
     }
+
+    open override fun put(obj: ByteArray, onlyThisNode: Boolean): IPromise<ByteArray> {
+        // TODO check if proper node for only this node
+        val pr = Promise<ByteArray>();
+
+        val oid = cl.objectId(obj);
+        val replicas = cl.replicasForObjectId(oid);
+
+        val thisNode = replicas.any { it.id == this.id.toInt() }
+        if( thisNode ){
+            val sId = store.seq.incrementAndGet();
+            store.objs.putIfAbsent(oid,obj);
+            store.seq2id.put(sId,oid);
+            // TODO: replicate if needed
+            delayedCommit();
+            pr.resolve(oid);
+        }
+        else {
+            if(onlyThisNode) {
+                pr.reject(NotThisNode("Not this node"));
+            } else {
+                // TODO: call other replicas
+                val r0 = replicas.get(0);
+                // ... need actor
+                pr.reject(NotThisNode("Not this node"));
+            }
+        }
+        return pr;
+    }
+
+    open override fun queryNewIds(after: Long, cnt: Int): IPromise<IdList> {
+        val pr = Promise<IdList>();
+        val r1 = ArrayList(
+                store.seq2id.tailMap(after,false).values.take(cnt)
+        );
+        pr.resolve( IdList(r1) );
+        return pr;
+    }
+
+    override fun stop() {
+        super.stop()
+        try {
+            store.db.commit()
+            store.db.close();
+        }catch (ex:Exception){
+
+        }
+    }
+
+    protected fun delayedCommit(){
+        if(!delCommit){
+            delCommit = true;
+            lastCommitPr = Promise();
+            val pr =lastCommitPr!!;
+            delayed(200) {
+                println("Delayed commit")
+                pr.resolve();
+                store.db.commit();
+                delCommit = false;
+            }
+        }
+    }
+
 }
