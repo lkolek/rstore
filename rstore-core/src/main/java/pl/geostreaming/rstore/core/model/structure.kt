@@ -13,31 +13,38 @@ import java.security.MessageDigest
  * Currently: static, can not be rebalanced.
  * Nodes can be changed (address), restarted from scratch
  */
-data class RsClusterDef(
-        val nodes:Array<NodeDef>,
+data class RsClusterDef private constructor(
+        val nodes:List<RsNodeDef>,
         val rf:Int = 1,
         val minRepl:Int = 1,
-        val REPL_SLOT_SIZE:Int = 1013
+        val replSlotSize:Int = 1013
 ) {
 
     init {
-        if(HashSet(nodes.asList().map { it.id }).size < nodes.size
-            || HashSet(nodes.asList().map { it.addr }).size < nodes.size
+        if(HashSet(nodes.map { it.id }).size < nodes.size
+            || HashSet(nodes.map { it.addr }).size < nodes.size
                 )
             throw RuntimeException("Nodes must be unique");
+
+        for(i in 1 until nodes.size){
+            if(nodes[i-1].id > nodes[i].id){
+                throw RuntimeException("Nodes must be sorted by id!");
+            }
+        }
+
         if(nodes.size < rf)
             throw RuntimeException("Replication factor must be at least the size of cluster!");
     }
 
     private constructor(builder:Builder) : this(
-            builder.nodes.toTypedArray(),
+            ArrayList(builder.nodes.sortedBy { it.id }),
             builder.rf,
             builder.mr,
             builder.rss
     );
 
     class Builder {
-        var nodes = ArrayList<NodeDef>()
+        var nodes = ArrayList<RsNodeDef>()
             private set
         var rf = 1
             private set
@@ -50,13 +57,13 @@ data class RsClusterDef(
 
         fun withReplicationFactor(rf:Int) = apply { this.rf = rf }
         fun withMinReplication(mr:Int) = apply {this.mr = mr}
-        fun withNode( id: Int, addr: String) = apply {this.nodes.add(NodeDef(id,addr))}
+        fun withNode( id: Int, addr: String) = apply {this.nodes.add(RsNodeDef(id,addr))}
 
         /**
          * CAUTION: generally probably should not be used.
          * For testing purposes (distribution etc)
          */
-        fun withSlotSize(ss:Int) = apply{this.rss = ss}
+        internal fun withSlotSize(ss:Int) = apply{this.rss = ss}
 
         fun build() = RsClusterDef(this)
     }
@@ -66,8 +73,8 @@ data class RsClusterDef(
         nodes.forEach{ println(it) }
     }
 
-    data class NodeDef(val id: Int, val addr: String)
 }
+data class RsNodeDef(val id: Int, val addr: String)
 
 
 
@@ -81,11 +88,19 @@ class RsCluster(val cfg:RsClusterDef){
     fun ByteArray.toSlot():Int{
         val ib = ByteBuffer.wrap(this).asIntBuffer();
         val a = ib.get().xor(ib.get()).xor(ib.get()).and(0x7fffffff)
-        return (a % (cfg.REPL_SLOT_SIZE ));
+        return (a % (cfg.replSlotSize ));
     }
 
 
+    fun replicasForObjectId(obj:ByteArray):Array<RsNodeDef>{
+        if(obj.size != 32){
+            throw RuntimeException("THIS IS NOT PROPER HASH");
+        }
+        val slot = obj.toSlot();
+        val r1= (slot * cfg.nodes.size) / cfg.replSlotSize;
+        return (0 until cfg.rf).map { x -> cfg.nodes[ (r1 + x) % cfg.nodes.size ] }.toTypedArray()
+    }
 
     fun objectId(obj:ByteArray) = obj.toObjectId()
-    fun slotForId(id:ByteArray) = id.toSlot()
+    internal fun slotForId(id:ByteArray) = id.toSlot()
 }
