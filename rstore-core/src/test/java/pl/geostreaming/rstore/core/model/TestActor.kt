@@ -94,17 +94,28 @@ class TestActor {
         println("inserting -------------")
 
         val ac = AtomicInteger()
-        (0..1000).forEach {
-            x -> try{
-//                actRem.put(("abc" + x +"test").toByteArray(),true).await();
-                act.put(("abc" + x +"test").toByteArray(),true).await();
-            } catch (ex:Exception ){
-                println("x failed:"+x + " - " + ex.message)
+        var add = "ldkajsdkh lksjad lkjas dlkjahs lkhsalk lkasjhdkjas lkdjalkjhsdklahskljhkl djalks d"
+//        (0..4).forEach { add = add+add }
+        val xx = ArrayList((0..1_000_000).map {
+            x -> while(actRem.isMailboxPressured){
+                Actors.yield();
             }
-        }
+            Pair(x,actRem.put(("abc" + x +"test" + add).toByteArray(),true))
+        });
+        xx
+            .reversed().take(100).reversed()
+            .forEach{ (i,x) -> try {  val y = x. await(); println(""+ i +":" + y.toHexString()) }catch(ex:Exception){}}
 
         println("queryIds -------------")
-        actRem.queryNewIds(0,1000).await().ids.forEachIndexed{ i,x -> println(""+i+ ":" + x.toHexString())}
+        val ids = ArrayList(actRem.queryNewIds(0,100_000).await().ids);
+        ids.forEachIndexed{ i,x -> println(""+i+ ":" + x.toHexString())}
+
+        println("get -----------")
+        val id2 =ArrayList(ids.map{x -> Pair(x,actRem.get(x))});
+
+        id2
+                .takeLast(100)
+                .forEachIndexed{ i,(_,x) ->  x.then{r,err -> println(""+i+ ":" + r.toHexString())}.await()}
 
         println("stop -----------")
 

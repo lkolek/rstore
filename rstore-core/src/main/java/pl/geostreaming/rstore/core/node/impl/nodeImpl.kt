@@ -87,11 +87,14 @@ open class RsNodeActorImpl:RsNodeActor(){
 
         val thisNode = replicas.any { it.id == this.id.toInt() }
         if( thisNode ){
-            val sId = store.seq.incrementAndGet();
-            store.objs.putIfAbsent(oid,obj);
-            store.seq2id.put(sId,oid);
-            // TODO: replicate if needed
-            delayedCommit();
+
+            if( !store.objs.containsKey(oid)) {
+                store.objs.putIfAbsent(oid,obj)
+                val sId = store.seq.incrementAndGet();
+                store.seq2id.put(sId, oid);
+                // TODO: replicate if needed
+                delayedCommit();
+            }
             pr.resolve(oid);
         }
         else {
@@ -108,12 +111,10 @@ open class RsNodeActorImpl:RsNodeActor(){
     }
 
     open override fun queryNewIds(after: Long, cnt: Int): IPromise<IdList> {
-        val pr = Promise<IdList>();
         val r1 = ArrayList(
                 store.seq2id.tailMap(after,false).values.take(cnt)
         );
-        pr.resolve( IdList(r1) );
-        return pr;
+        return resolve( IdList(r1) );
     }
 
     override fun stop() {
@@ -132,7 +133,7 @@ open class RsNodeActorImpl:RsNodeActor(){
             lastCommitPr = Promise();
             val pr =lastCommitPr!!;
             delayed(200) {
-                println("Delayed commit")
+                println("Delayed commit:" + store.seq2id.navigableKeySet().last())
                 pr.resolve();
                 store.db.commit();
                 delCommit = false;
@@ -140,4 +141,7 @@ open class RsNodeActorImpl:RsNodeActor(){
         }
     }
 
+    open override fun get(oid: ByteArray): IPromise<ByteArray> {
+        return resolve(store.objs.get(oid));
+    }
 }

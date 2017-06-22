@@ -29,5 +29,6 @@ open class RsNodeActor : Actor<RsNodeActor>() {
     open fun put(obj:ByteArray, onlyThisNode:Boolean):IPromise<ByteArray> { return Actors.reject(RuntimeException("UNIMPLEMENTED")); }
 
     open fun queryNewIds(afert:Long, cnt:Int):IPromise<IdList>{ return Actors.reject(RuntimeException("UNIMPLEMENTED")); }
+    open fun get(oid:ByteArray):IPromise<ByteArray> { return Actors.reject(RuntimeException("UNIMPLEMENTED")); }
 }
 
