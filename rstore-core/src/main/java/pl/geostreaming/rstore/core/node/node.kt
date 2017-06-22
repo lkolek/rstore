@@ -24,11 +24,18 @@ data class IdList(val ids:ArrayList<ByteArray>):Serializable;
  */
 open class RsNodeActor : Actor<RsNodeActor>() {
 
-    open fun test1(test:String):IPromise<String> {  return Actors.reject(RuntimeException("UNIMPLEMENTED")); }
-    open fun cfg():IPromise<RsClusterDef> {  return Actors.reject(RuntimeException("UNIMPLEMENTED")); }
-    open fun put(obj:ByteArray, onlyThisNode:Boolean):IPromise<ByteArray> { return Actors.reject(RuntimeException("UNIMPLEMENTED")); }
+    open fun test1(test:String):IPromise<String>
+            =reject(RuntimeException("UNIMPLEMENTED"));
+    open fun cfg():IPromise<RsClusterDef>
+            =reject(RuntimeException("UNIMPLEMENTED"));
+    open fun put(obj:ByteArray, onlyThisNode:Boolean):IPromise<ByteArray>
+            =reject(RuntimeException("UNIMPLEMENTED"));
 
-    open fun queryNewIds(afert:Long, cnt:Int):IPromise<IdList>{ return Actors.reject(RuntimeException("UNIMPLEMENTED")); }
-    open fun get(oid:ByteArray):IPromise<ByteArray> { return Actors.reject(RuntimeException("UNIMPLEMENTED")); }
+    open fun queryNewIds(afert:Long, cnt:Int):IPromise<IdList>
+            =reject(RuntimeException("UNIMPLEMENTED"));
+    open fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList>
+            = reject(RuntimeException("UNIMPLEMENTED"));
+    open fun get(oid:ByteArray):IPromise<ByteArray>
+            = reject(RuntimeException("UNIMPLEMENTED"));
 }
 

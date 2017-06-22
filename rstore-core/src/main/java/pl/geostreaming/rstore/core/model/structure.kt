@@ -78,7 +78,9 @@ data class RsClusterDef private constructor(
 data class RsNodeDef(val id: Int, val addr: String):Serializable
 
 
-
+/**
+ * Contains clustering / partitioning calculations for cluster of replicas
+ */
 class RsCluster(val cfg:RsClusterDef){
     private val md = MessageDigest.getInstance("SHA-256");
 
@@ -92,14 +94,45 @@ class RsCluster(val cfg:RsClusterDef){
         return (a % (cfg.replSlotSize ));
     }
 
-
-    fun replicasForObjectId(obj:ByteArray):Array<RsNodeDef>{
-        if(obj.size != 32){
+    /**
+     * Returns first replica, that should store given key
+     */
+    fun firstReplIdxForObjectId(id:ByteArray):Int{
+        if(id.size != 32){
             throw RuntimeException("THIS IS NOT PROPER HASH");
         }
-        val slot = obj.toSlot();
-        val r1= (slot * cfg.nodes.size) / cfg.replSlotSize;
+        val slot = id.toSlot();
+        return (slot * cfg.nodes.size) / cfg.replSlotSize;
+    }
+
+    /**
+     * Gives array of replicas that should store given id
+     */
+    fun replicasForObjectId(id:ByteArray):Array<RsNodeDef>{
+        val r1 = firstReplIdxForObjectId(id);
         return (0 until cfg.rf).map { x -> cfg.nodes[ (r1 + x) % cfg.nodes.size ] }.toTypedArray()
+    }
+
+    /**
+     * Tests if ob
+     */
+    fun isReplicaForObjectId(id:ByteArray, replId:Int):Boolean{
+        val r1 = firstReplIdxForObjectId(id);
+        val idx1 = cfg.nodes.indexOfFirst { it.id == replId }
+        val ns = cfg.nodes.size
+        return (ns + idx1 - r1 ) % ns < cfg.rf;
+    }
+
+    /**
+     * tests if 2 replicas can have common objects
+     */
+    fun hasCommons(r1:Int,r2:Int):Boolean{
+        val idx1 = cfg.nodes.indexOfFirst { it.id == r1 }
+        val idx2 = cfg.nodes.indexOfFirst { it.id == r2 }
+        val ns = cfg.nodes.size
+        val x1= (ns + idx1 - idx2 ) % ns < cfg.rf;
+        val x2= (ns + idx2 - idx1 ) % ns < cfg.rf;
+        return x1 || x2;
     }
 
     fun objectId(obj:ByteArray) = obj.toObjectId()

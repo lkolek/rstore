@@ -27,26 +27,29 @@ open class RsNodeActorImpl:RsNodeActor(){
     lateinit var cfg:RsClusterDef;
     lateinit var cl: RsCluster;
 
+    var delCommitMs:Long = 5000;
     var delCommit = false;
     var lastCommitPr: IPromise<Void>? = null;
 
     @Local
-    open fun init(id:Int, cfg1: RsClusterDef, dbLocation:String) {
+    open fun init(id:Int, cfg1: RsClusterDef, dbLocation:String, dbTrans:Boolean = false) {
         this.cfg = cfg1;
         this.id = Integer(id);
         this.cl = RsCluster(cfg1);
 
         println("initialized, cfg=" + cfg)
-        prepare(dbLocation);
+        prepare(dbLocation,dbTrans);
     }
 
-    private fun prepare(dbLocation:String){
-        val db =DBMaker.fileDB(dbLocation)
-                .closeOnJvmShutdown()
-                .fileMmapEnableIfSupported()
-//                .checksumStoreEnable()
-                .transactionEnable()
-                .make();
+    private fun prepare(dbLocation:String, dbTrans:Boolean){
+        val db = with(DBMaker.fileDB(dbLocation)){
+            DBMaker.fileDB(dbLocation)
+            fileMmapEnableIfSupported()
+            if(dbTrans)
+                transactionEnable();
+            make();
+        }
+
 
          val objs = db.hashMap("objs")
                  .keySerializer(Serializer.BYTE_ARRAY)
@@ -117,6 +120,17 @@ open class RsNodeActorImpl:RsNodeActor(){
         return resolve( IdList(r1) );
     }
 
+    open override fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList> {
+        val r1 = ArrayList(
+                store.seq2id.tailMap(after,false).values
+                        .filter{
+                            cl.isReplicaForObjectId(it,replId)
+                        }
+                        .take(cnt)
+        );
+        return resolve( IdList(r1) );
+    }
+
     override fun stop() {
         super.stop()
         try {
@@ -128,11 +142,11 @@ open class RsNodeActorImpl:RsNodeActor(){
     }
 
     protected fun delayedCommit(){
-        if(!delCommit){
+        if(!delCommit && delCommitMs > 0L){
             delCommit = true;
             lastCommitPr = Promise();
             val pr =lastCommitPr!!;
-            delayed(200) {
+            delayed(delCommitMs) {
                 println("Delayed commit:" + store.seq2id.navigableKeySet().last())
                 pr.resolve();
                 store.db.commit();
@@ -141,7 +155,5 @@ open class RsNodeActorImpl:RsNodeActor(){
         }
     }
 
-    open override fun get(oid: ByteArray): IPromise<ByteArray> {
-        return resolve(store.objs.get(oid));
-    }
+    open override fun get(oid: ByteArray): IPromise<ByteArray> =resolve(store.objs.get(oid))
 }
