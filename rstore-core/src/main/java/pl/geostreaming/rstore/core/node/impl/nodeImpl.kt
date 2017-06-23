@@ -10,6 +10,7 @@ import pl.geostreaming.rstore.core.model.RsClusterDef
 import pl.geostreaming.rstore.core.node.IdList
 import pl.geostreaming.rstore.core.node.NotThisNode
 import pl.geostreaming.rstore.core.node.RsNodeActor
+import pl.geostreaming.rstore.core.node.SyncState
 
 /**
  * Created by lkolek on 21.06.2017.
@@ -38,6 +39,14 @@ open class RsNodeActorImpl:RsNodeActor(){
 
         println("initialized, cfg=" + cfg)
         prepare(dbLocation);
+    }
+
+
+    /**
+     * called from other repl for introduction
+     */
+    open override fun introduce(id: Int, replicaActor: RsNodeActor, own: SyncState): IPromise<SyncState> {
+        return super.introduce(id, replicaActor, own)
     }
 
     private fun prepare(dbLocation:String){
