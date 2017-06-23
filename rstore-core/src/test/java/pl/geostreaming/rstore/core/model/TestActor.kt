@@ -91,21 +91,21 @@ class TestActor {
         val con = WebSocketConnectable(RsNodeActorImpl::class.java, "http://localhost:4001/xx").serType(enc);
         val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
 
-//        println("inserting -------------")
-//
-//        val ac = AtomicInteger()
-//        var add = "ldkajsdkh lksjad lkjas dlkjahs lkhsalk lkasjhdkjas lkdjalkjhsdklahskljhkl djalks d"
-////        (0..4).forEach { add = add+add }
-//        val xx = ArrayList((0..1_000_000).map {
-//            x -> while(actRem.isMailboxPressured){
-//                Actors.yield();
-//            }
-//            Pair(x,actRem.put(("abc" + x +"test" + add).toByteArray(),true))
-//        });
-//        xx
-//            .reversed().take(100).reversed()
-//            .forEach{ (i,x) -> try {  val y = x. await(); println(""+ i +":" + y.toHexString()) }catch(ex:Exception){}}
-//
+        println("inserting -------------")
+
+        val ac = AtomicInteger()
+        var add = "ldkajsdkh lksjad lkjas dlkjahs lkhsalk lkasjhdkjas lkdjalkjhsdklahskljhkl djalks d"
+//        (0..4).forEach { add = add+add }
+        val xx = ArrayList((0..1_000_000).map {
+            x -> while(actRem.isMailboxPressured){
+                Actors.yield();
+            }
+            Pair(x,actRem.put(("abc" + x +"test" + add).toByteArray(),true))
+        });
+        xx
+            .reversed().take(100).reversed()
+            .forEach{ (i,x) -> try {  val y = x. await(); println(""+ i +":" + y.toHexString()) }catch(ex:Exception){}}
+
 
         var from = 0L;
         for(ixx in 1..10) {
