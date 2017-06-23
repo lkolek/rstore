@@ -20,7 +20,10 @@ open class RsNodeActorImpl:RsNodeActor(){
             val db:DB,
             val objs:HTreeMap<ByteArray,ByteArray>,
             val seq:Atomic.Long,
-            val seq2id:BTreeMap<Long,ByteArray>
+            val seq2id:BTreeMap<Long,ByteArray>,
+            val lastSeqIdsLocal:BTreeMap<Int,Long>,
+            val lastSeqIdsRemote:BTreeMap<Int,Long>
+
     );
     lateinit var id:Integer;
     lateinit var store:Store;
@@ -63,8 +66,24 @@ open class RsNodeActorImpl:RsNodeActor(){
                 .counterEnable()
                 .createOrOpen();
 
-        store = Store(db,objs, db.atomicLong("seq").createOrOpen(),seq2id);
+        val lastSeqIdsLocal = db.treeMap("lastSeqIds")
+                .keySerializer(Serializer.INTEGER)
+                .valueSerializer(Serializer.LONG)
+                .createOrOpen();
+        val lastSeqIdsRemote = db.treeMap("lastSeqIds")
+                .keySerializer(Serializer.INTEGER)
+                .valueSerializer(Serializer.LONG)
+                .createOrOpen();
 
+        store = Store(db,objs, db.atomicLong("seq").createOrOpen(),seq2id,lastSeqIdsLocal,lastSeqIdsRemote);
+
+        // init
+        cfg.nodes
+                .filter { n -> cl.hasCommons(n.id,id.toInt()) && n.id != id.toInt() }
+                .forEach{ n ->
+                    lastSeqIdsLocal.putIfAbsent(n.id, -1L)
+                    lastSeqIdsRemote.putIfAbsent(n.id, -1L)
+                }
     }
 
     open override fun test1(test:String): IPromise<String> {
@@ -117,9 +136,12 @@ open class RsNodeActorImpl:RsNodeActor(){
         val r1 = ArrayList(
                 store.seq2id.tailMap(after,false).values.take(cnt)
         );
-        return resolve( IdList(r1) );
+        return resolve( IdList(r1, after, store.seq.get() ));
     }
 
+    /**
+     *
+     */
     open override fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList> {
         val r1 = ArrayList(
                 store.seq2id.tailMap(after,false).values
@@ -128,7 +150,17 @@ open class RsNodeActorImpl:RsNodeActor(){
                         }
                         .take(cnt)
         );
-        return resolve( IdList(r1) );
+
+        // calc last seqId for repl
+        // it should be retrived
+        val lastSeqList = store.seq2id.descendingMap()
+                ?.filter { cl.isReplicaForObjectId(it.value,replId) }
+                ?.toList()
+                ?.take(1)
+                ?.map { it.first };
+        val lastSeqId = if(lastSeqList != null &&  !lastSeqList.isEmpty()) {  lastSeqList.first()} else {0L}
+
+        return resolve( IdList(r1, after, lastSeqId ) );
     }
 
     override fun stop() {
