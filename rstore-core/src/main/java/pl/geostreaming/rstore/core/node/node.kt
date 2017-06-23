@@ -21,12 +21,17 @@ data class IdList(
         val lastSeqId:Long
 ):Serializable;
 
+data class SyncState(val forReplId:Int, val seqOwn:Int, val seqRemote:Int):Serializable;
+data class ReplState(val replId:Int, val sync:ArrayList<SyncState>):Serializable;
+
 /**
  *
  * NOTES:
  *  - currently cluster cfg can't change, but in the future we don't have to kill all nodes to apply SOME changes
  */
 open class RsNodeActor : Actor<RsNodeActor>() {
+
+    open fun introduce(id:Int, replicaActor:RsNodeActor, own:SyncState ):IPromise<SyncState> = reject(RuntimeException("UNIMPLEMENTED"));
 
     open fun test1(test:String):IPromise<String>
             =reject(RuntimeException("UNIMPLEMENTED"));
