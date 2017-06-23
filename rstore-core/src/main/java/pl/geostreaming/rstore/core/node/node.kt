@@ -1,9 +1,6 @@
 package pl.geostreaming.rstore.core.node
 
-import org.nustaq.kontraktor.Actor
-import org.nustaq.kontraktor.Actors
-import org.nustaq.kontraktor.IPromise
-import org.nustaq.kontraktor.Promise
+import org.nustaq.kontraktor.*
 import org.nustaq.kontraktor.annotations.Local
 import org.nustaq.serialization.annotations.Flat
 import pl.geostreaming.rstore.core.model.RsClusterDef
@@ -31,7 +28,8 @@ data class ReplState(val replId:Int, val sync:ArrayList<SyncState>):Serializable
  */
 open class RsNodeActor : Actor<RsNodeActor>() {
 
-    open fun introduce(id:Int, replicaActor:RsNodeActor, own:SyncState ):IPromise<SyncState> = reject(RuntimeException("UNIMPLEMENTED"));
+    open fun introduce(id:Int, replicaActor:RsNodeActor, own:SyncState ):IPromise<SyncState>
+            = reject(RuntimeException("UNIMPLEMENTED"));
 
     open fun test1(test:String):IPromise<String>
             =reject(RuntimeException("UNIMPLEMENTED"));
@@ -46,5 +44,8 @@ open class RsNodeActor : Actor<RsNodeActor>() {
             = reject(RuntimeException("UNIMPLEMENTED"));
     open fun get(oid:ByteArray):IPromise<ByteArray>
             = reject(RuntimeException("UNIMPLEMENTED"));
+
+
+    open fun listenIds(cb:Callback<Pair<Long,ByteArray>>){}
 }
 

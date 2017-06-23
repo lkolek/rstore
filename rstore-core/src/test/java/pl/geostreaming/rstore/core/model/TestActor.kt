@@ -13,6 +13,7 @@ import org.nustaq.kontraktor.remoting.websockets.WebSocketPublisher
 import pl.geostreaming.rstore.core.util.toHexString
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
+import java.util.function.Consumer
 
 
 /**
@@ -83,10 +84,11 @@ class TestActor {
 
         /**/
         val pp = TCPNIOPublisher(act, port)
-                .serType(enc)
+//                .serType(enc)
                 .publish().await();
 
-        val con = TCPConnectable(RsNodeActorImpl::class.java, "localhost", port).serType(enc);
+        val con = TCPConnectable(RsNodeActor::class.java, "localhost", port)
+//                .serType(enc);
         val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
         /**/
 
@@ -98,21 +100,23 @@ class TestActor {
         val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
         */
 
+//        actRem.listenIds( Callback{ (s,id), err -> println("INS: " + s + "->" + id.toHexString() )})
+        actRem.listenIds( Callback{ (s,id), err -> println("INS2: " + s + "->" + id.toHexString() )})
 
         println("inserting -------------")
 
         val ac = AtomicInteger()
         var add = "ldkajsdkh lksjad lkjas dlkjahs lkhsalk lkasjhdkjas lkdjalkjhsdklahskljhkl djalks d"
 //        (0..4).forEach { add = add+add }
-        val xx = ArrayList((0..1_000_000).map {
+        val xx = ArrayList((0..1_0_000).map {
             x -> while(actRem.isMailboxPressured){
-                Actors.yield();
-            }
+            Actors.yield();
+        }
             Pair(x,actRem.put(("abc" + x +"test" + add).toByteArray(),true))
         });
         xx
-            .reversed().take(100).reversed()
-            .forEach{ (i,x) -> try {  val y = x. await(); println(""+ i +":" + y.toHexString()) }catch(ex:Exception){}}
+                .reversed().take(100).reversed()
+                .forEach{ (i,x) -> try {  val y = x. await(); println(""+ i +":" + y.toHexString()) }catch(ex:Exception){}}
 
 
         var from = 0L;

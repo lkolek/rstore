@@ -2,6 +2,7 @@ package pl.geostreaming.rstore.core.node.impl
 
 import org.mapdb.*
 import org.mapdb.serializer.SerializerCompressionWrapper
+import org.nustaq.kontraktor.Callback
 import org.nustaq.kontraktor.IPromise
 import org.nustaq.kontraktor.Promise
 import org.nustaq.kontraktor.annotations.Local
@@ -35,6 +36,10 @@ open class RsNodeActorImpl:RsNodeActor(){
     var delCommit = false;
     var lastCommitPr: IPromise<Void>? = null;
 
+
+    val lastContinuousAppliedSeq:Map<Int,Long> = HashMap();
+
+
     @Local
     open fun init(id:Int, cfg1: RsClusterDef, dbLocation:String, dbTrans:Boolean = false) {
         this.cfg = cfg1;
@@ -49,6 +54,7 @@ open class RsNodeActorImpl:RsNodeActor(){
      * called from other repl for introduction
      */
     open override fun introduce(id: Int, replicaActor: RsNodeActor, own: SyncState): IPromise<SyncState> {
+
         return super.introduce(id, replicaActor, own)
     }
 
@@ -124,6 +130,9 @@ open class RsNodeActorImpl:RsNodeActor(){
                 val sId = store.seq.incrementAndGet();
                 store.seq2id.put(sId, oid);
                 // TODO: replicate if needed
+
+                listenIdsCalbacks.forEach { cb-> cb.stream(Pair(sId,oid)) }
+
                 delayedCommit();
             }
             pr.resolve(oid);
@@ -197,4 +206,11 @@ open class RsNodeActorImpl:RsNodeActor(){
     }
 
     open override fun get(oid: ByteArray): IPromise<ByteArray> =resolve(store.objs.get(oid))
+
+
+    val listenIdsCalbacks = ArrayList<Callback<Pair<Long, ByteArray>>>();
+
+    override fun listenIds(cb: Callback<Pair<Long, ByteArray>>) {
+        listenIdsCalbacks.add(cb);
+    }
 }
