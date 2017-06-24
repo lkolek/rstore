@@ -8,9 +8,11 @@ import org.nustaq.kontraktor.Promise
 import org.nustaq.kontraktor.annotations.Local
 import pl.geostreaming.rstore.core.model.RsCluster
 import pl.geostreaming.rstore.core.model.RsClusterDef
+import pl.geostreaming.rstore.core.node.HeartbitData
 import pl.geostreaming.rstore.core.node.IdList
 import pl.geostreaming.rstore.core.node.NotThisNode
 import pl.geostreaming.rstore.core.node.RsNodeActor
+import kotlin.concurrent.fixedRateTimer
 
 /**
  * Created by lkolek on 21.06.2017.
@@ -24,6 +26,8 @@ class RsNodeActorImpl:RsNodeActor(){
             val seq2id:BTreeMap<Long,ByteArray>
     );
 
+
+
     final lateinit var id:Integer;
     final lateinit var store:Store;
     final lateinit var cfg:RsClusterDef;
@@ -36,6 +40,7 @@ class RsNodeActorImpl:RsNodeActor(){
 
 
     final val listenIdsCalbacks = ArrayList<Callback<Pair<Long, ByteArray>>>();
+    final val heartbitCallbacks = ArrayList<Callback<HeartbitData>>();
 
 
     class RemoteReplicaReg( val remoteRepl:RsNodeActor, val replicator: Replicator );
@@ -47,11 +52,21 @@ class RsNodeActorImpl:RsNodeActor(){
         this.id = Integer(id);
         this.cl = RsCluster(cfg1);
 
-        this.retriver = AsActor(RetriverActor::class.java)
+        this.retriver = AsActor(RetriverActor::class.java, 500)
         this.retriver.init( self() );
 
         println("initialized, cfg=" + cfg)
         prepare(dbLocation,dbTrans);
+
+        // ready
+        tick();
+    }
+
+    protected fun tick(){
+        val hb = HeartbitData(System.currentTimeMillis(), this.id.toInt(), remoteRepls.values.map { x -> x.replicator.below() }.sum() )
+        heartbitCallbacks.forEach{x -> x.stream(hb)}
+
+        delayed(1000){tick()}
     }
 
     /**
@@ -216,5 +231,9 @@ class RsNodeActorImpl:RsNodeActor(){
 
     override fun listenIds(cb: Callback<Pair<Long, ByteArray>>) {
         listenIdsCalbacks.add(cb);
+    }
+
+    override fun listenHeartbit(cb: Callback<HeartbitData>) {
+        heartbitCallbacks.add(cb);
     }
 }

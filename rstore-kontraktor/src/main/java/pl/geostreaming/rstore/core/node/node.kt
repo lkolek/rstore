@@ -20,6 +20,12 @@ data class IdList(
 ):Serializable;
 
 
+data class HeartbitData(val time:Long, val replId:Int, val totalBelow:Long):Serializable{
+    override fun toString(): String {
+        return "HeartbitData(time=$time, replId=$replId, totalBelow=$totalBelow)"
+    }
+}
+
 /**
  *
  * NOTES:
@@ -45,5 +51,6 @@ class RsNodeActor : Actor<RsNodeActor>() {
 
 
     fun listenIds(cb:Callback<Pair<Long,ByteArray>>){}
+    fun listenHeartbit(cb:Callback<HeartbitData>){}
 }
 

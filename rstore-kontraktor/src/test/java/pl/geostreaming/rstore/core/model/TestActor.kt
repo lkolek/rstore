@@ -11,6 +11,7 @@ import org.nustaq.kontraktor.remoting.tcp.TCPConnectable
 import org.nustaq.kontraktor.remoting.websockets.WebSocketConnectable
 import org.nustaq.kontraktor.remoting.websockets.WebSocketPublisher
 import pl.geostreaming.rstore.core.util.toHexString
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import java.util.function.Consumer
@@ -71,7 +72,7 @@ class TestActor {
         val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
         */
 
-        actRem.listenIds( Callback{ (s,id), err -> println("INS: " + s + "->" + id.toHexString() )})
+        actRem.listenIds( Callback{ (s,id), err ->  if(s % 50L == 0L) println("INS: " + s + "->" + id.toHexString() )})
 //        actRem.listenIds( Callback{ (s,id), err -> println("INS2: " + s + "->" + id.toHexString() )})
 
         println("inserting -------------")
@@ -79,7 +80,7 @@ class TestActor {
         val ac = AtomicInteger()
         var add = "ldkajsdkh lksjad lkjas dlkjahs lkhsalk lkasjhdkjas lkdjalkjhsdklahskljhkl djalks d"
 //        (0..4).forEach { add = add+add }
-        val xx = ArrayList((0..1_0_000).map {
+        val xx = ArrayList((0..10_000).map {
             x -> while(actRem.isMailboxPressured){
             Actors.yield();
         }
@@ -123,15 +124,27 @@ class TestActor {
         val (act2,actRem2) = makeAct(2);
 
 
-        actRem2.listenIds( Callback{ (s,id), err -> println("INS to 2: " + s + "->" + id.toHexString() )})
+        actRem2.listenIds( Callback{ (s,id), err -> if(s % 50L == 0L) println("INS to 2: " + s + "->" + id.toHexString() )})
 
         // TODO: don't know seqId, it should be xxxx
         actRem2.introduce(1, actRem, 0 ).await();
 
 
-        actRem.listenIds( Callback{ (s,id), err -> println("INS: " + s + "->" + id.toHexString() )})
+        actRem.listenIds( Callback{ (s,id), err -> if(s % 50L == 0L) println("INS: " + s + "->" + id.toHexString() )})
 //        actRem.listenIds( Callback{ (s,id), err -> println("INS2: " + s + "->" + id.toHexString() )})
 
+
+
+        val finished = AtomicBoolean(false);
+
+        val ts0 = System.currentTimeMillis();
+        actRem2.listenHeartbit(Callback { result, error -> if(Actors.isResult(error)) {
+            println("####  HEARTBIT: " + result.replId + ", toPr=" + result.totalBelow)
+            if(result.totalBelow <= 0L){
+                println("FINISHED, t=" + (System.currentTimeMillis()-ts0));
+                finished.set(true)
+            }
+        } })
         println("inserting -------------")
 
         val ac = AtomicInteger()
@@ -139,19 +152,36 @@ class TestActor {
 //        (0..4).forEach { add = add+add }
 
         val pendingAdds = AtomicInteger();
-        val xx = ArrayList((0..3_000).map {
+        val xx = ArrayList((0..30_000).map {
             x ->
+//            Thread.sleep(1);
 
-            Thread.sleep(10);
-
-            while(actRem.isMailboxPressured || pendingAdds.get() > 500){
+            while(actRem.isMailboxPressured || pendingAdds.get() > 50){
                 Actors.yield();
             };
-            Pair(x,actRem.put(("abc" + x +"test" + add).toByteArray(),true)
-                    .then { x,y ->  pendingAdds.decrementAndGet(); }
+            val obj = ("abc" + x +"test" + add).toByteArray();
+
+            pendingAdds.incrementAndGet();
+            val ret = Pair(x,actRem.put(obj,true)
+                    .onResult{ pendingAdds.decrementAndGet(); }
+                    .onError{pendingAdds.decrementAndGet();}
             )
 
+//            pendingAdds.incrementAndGet();
+//            actRem2.put(obj,true)
+//                    .onResult{ pendingAdds.decrementAndGet(); }
+//                    .onError{pendingAdds.decrementAndGet();};
+//
+
+            ret;
         });
+
+        while(pendingAdds.get() > 0){
+            Actors.yield();
+        };
+
+        val ts1 = System.currentTimeMillis()
+        println("=== inserted all to 1, t=" +(ts1-ts0));
 
         xx
             .reversed().take(100).reversed()
@@ -200,8 +230,11 @@ class TestActor {
             from += ids.size;
         }
 
+
         println("waiting -----------")
-        Thread.sleep(10_000)
+
+        while(! finished.get())
+            Thread.sleep(1_000)
         println("stop -----------")
 
         actRem.close();
