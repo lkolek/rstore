@@ -40,6 +40,9 @@ open class RsNodeActorImpl:RsNodeActor(){
     val lastContinuousAppliedSeq:Map<Int,Long> = HashMap();
 
 
+    val listenIdsCalbacks = ArrayList<Callback<Pair<Long, ByteArray>>>();
+
+
     @Local
     open fun init(id:Int, cfg1: RsClusterDef, dbLocation:String, dbTrans:Boolean = false) {
         this.cfg = cfg1;
@@ -208,7 +211,6 @@ open class RsNodeActorImpl:RsNodeActor(){
     open override fun get(oid: ByteArray): IPromise<ByteArray> =resolve(store.objs.get(oid))
 
 
-    val listenIdsCalbacks = ArrayList<Callback<Pair<Long, ByteArray>>>();
 
     override fun listenIds(cb: Callback<Pair<Long, ByteArray>>) {
         listenIdsCalbacks.add(cb);
