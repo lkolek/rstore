@@ -17,7 +17,7 @@ import pl.geostreaming.rstore.core.node.SyncState
  * Created by lkolek on 21.06.2017.
  */
 
-open class RsNodeActorImpl:RsNodeActor(){
+class RsNodeActorImpl:RsNodeActor(){
     data class Store(
             val db:DB,
             val objs:HTreeMap<ByteArray,ByteArray>,
@@ -27,24 +27,25 @@ open class RsNodeActorImpl:RsNodeActor(){
             val lastSeqIdsRemote:BTreeMap<Int,Long>
 
     );
-    lateinit var id:Integer;
-    lateinit var store:Store;
-    lateinit var cfg:RsClusterDef;
-    lateinit var cl: RsCluster;
 
-    var delCommitMs:Long = 5000;
-    var delCommit = false;
-    var lastCommitPr: IPromise<Void>? = null;
+    final lateinit var id:Integer;
+    final lateinit var store:Store;
+    final lateinit var cfg:RsClusterDef;
+    final lateinit var cl: RsCluster;
 
-
-    val lastContinuousAppliedSeq:Map<Int,Long> = HashMap();
+    final var delCommitMs:Long = 5000;
+    final var delCommit = false;
+    final var lastCommitPr: IPromise<Void>? = null;
 
 
-    val listenIdsCalbacks = ArrayList<Callback<Pair<Long, ByteArray>>>();
+    final val lastContinuousAppliedSeq:Map<Int,Long> = HashMap();
+
+
+    final val listenIdsCalbacks = ArrayList<Callback<Pair<Long, ByteArray>>>();
 
 
     @Local
-    open fun init(id:Int, cfg1: RsClusterDef, dbLocation:String, dbTrans:Boolean = false) {
+    fun init(id:Int, cfg1: RsClusterDef, dbLocation:String, dbTrans:Boolean = false) {
         this.cfg = cfg1;
         this.id = Integer(id);
         this.cl = RsCluster(cfg1);
@@ -56,7 +57,7 @@ open class RsNodeActorImpl:RsNodeActor(){
     /**
      * called from other repl for introduction
      */
-    open override fun introduce(id: Int, replicaActor: RsNodeActor, own: SyncState): IPromise<SyncState> {
+    override fun introduce(id: Int, replicaActor: RsNodeActor, own: SyncState): IPromise<SyncState> {
 
         return super.introduce(id, replicaActor, own)
     }
@@ -104,7 +105,7 @@ open class RsNodeActorImpl:RsNodeActor(){
                 }
     }
 
-    open override fun test1(test:String): IPromise<String> {
+    override fun test1(test:String): IPromise<String> {
         val pr = Promise<String>();
 
         pr.resolve("abc")
@@ -112,13 +113,13 @@ open class RsNodeActorImpl:RsNodeActor(){
         return pr;
     }
 
-    open override fun cfg(): IPromise<RsClusterDef> {
+    override fun cfg(): IPromise<RsClusterDef> {
         val ret= Promise<RsClusterDef>();
         ret.resolve(cfg);
         return ret;
     }
 
-    open override fun put(obj: ByteArray, onlyThisNode: Boolean): IPromise<ByteArray> {
+    override fun put(obj: ByteArray, onlyThisNode: Boolean): IPromise<ByteArray> {
         // TODO check if proper node for only this node
         val pr = Promise<ByteArray>();
 
@@ -153,7 +154,7 @@ open class RsNodeActorImpl:RsNodeActor(){
         return pr;
     }
 
-    open override fun queryNewIds(after: Long, cnt: Int): IPromise<IdList> {
+    override fun queryNewIds(after: Long, cnt: Int): IPromise<IdList> {
         val r1 = ArrayList(
                 store.seq2id.tailMap(after,false).values.take(cnt)
         );
@@ -163,7 +164,7 @@ open class RsNodeActorImpl:RsNodeActor(){
     /**
      *
      */
-    open override fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList> {
+    override fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList> {
         val r1 = ArrayList(
                 store.seq2id.tailMap(after,false).values
                         .filter{
@@ -208,7 +209,7 @@ open class RsNodeActorImpl:RsNodeActor(){
         }
     }
 
-    open override fun get(oid: ByteArray): IPromise<ByteArray> =resolve(store.objs.get(oid))
+    override fun get(oid: ByteArray): IPromise<ByteArray> =resolve(store.objs.get(oid))
 
 
 

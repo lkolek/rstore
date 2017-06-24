@@ -3,6 +3,7 @@ package pl.geostreaming.rstore.core.node
 import org.nustaq.kontraktor.*
 import org.nustaq.kontraktor.annotations.Local
 import org.nustaq.serialization.annotations.Flat
+import pl.geostreaming.kt.Open
 import pl.geostreaming.rstore.core.model.RsClusterDef
 import java.io.Serializable
 
@@ -26,26 +27,27 @@ data class ReplState(val replId:Int, val sync:ArrayList<SyncState>):Serializable
  * NOTES:
  *  - currently cluster cfg can't change, but in the future we don't have to kill all nodes to apply SOME changes
  */
-open class RsNodeActor : Actor<RsNodeActor>() {
+@Open
+class RsNodeActor : Actor<RsNodeActor>() {
 
-    open fun introduce(id:Int, replicaActor:RsNodeActor, own:SyncState ):IPromise<SyncState>
+    fun introduce(id:Int, replicaActor:RsNodeActor, own:SyncState ):IPromise<SyncState>
             = reject(RuntimeException("UNIMPLEMENTED"));
 
-    open fun test1(test:String):IPromise<String>
+    fun test1(test:String):IPromise<String>
             =reject(RuntimeException("UNIMPLEMENTED"));
-    open fun cfg():IPromise<RsClusterDef>
+    fun cfg():IPromise<RsClusterDef>
             =reject(RuntimeException("UNIMPLEMENTED"));
-    open fun put(obj:ByteArray, onlyThisNode:Boolean):IPromise<ByteArray>
+    fun put(obj:ByteArray, onlyThisNode:Boolean):IPromise<ByteArray>
             =reject(RuntimeException("UNIMPLEMENTED"));
 
-    open fun queryNewIds(afert:Long, cnt:Int):IPromise<IdList>
+    fun queryNewIds(afert:Long, cnt:Int):IPromise<IdList>
             =reject(RuntimeException("UNIMPLEMENTED"));
-    open fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList>
+    fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList>
             = reject(RuntimeException("UNIMPLEMENTED"));
-    open fun get(oid:ByteArray):IPromise<ByteArray>
+    fun get(oid:ByteArray):IPromise<ByteArray>
             = reject(RuntimeException("UNIMPLEMENTED"));
 
 
-    open fun listenIds(cb:Callback<Pair<Long,ByteArray>>){}
+    fun listenIds(cb:Callback<Pair<Long,ByteArray>>){}
 }
 
