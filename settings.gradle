@@ -1,3 +1,4 @@
 rootProject.name = 'rstore'
 include 'rstore-core'
+include 'rstore-kontraktor'
 

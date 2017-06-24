@@ -64,7 +64,7 @@ data class RsClusterDef private constructor(
          * CAUTION: generally probably should not be used.
          * For testing purposes (distribution etc)
          */
-        internal fun withSlotSize(ss:Int) = apply{this.rss = ss}
+        fun withSlotSize(ss:Int) = apply{this.rss = ss}
 
         fun build() = RsClusterDef(this)
     }
