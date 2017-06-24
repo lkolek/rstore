@@ -19,8 +19,6 @@ data class IdList(
         val lastSeqId:Long
 ):Serializable;
 
-data class SyncState(val forReplId:Int, val seqOwn:Int, val seqRemote:Int):Serializable;
-data class ReplState(val replId:Int, val sync:ArrayList<SyncState>):Serializable;
 
 /**
  *
@@ -30,7 +28,7 @@ data class ReplState(val replId:Int, val sync:ArrayList<SyncState>):Serializable
 @Open
 class RsNodeActor : Actor<RsNodeActor>() {
 
-    fun introduce(id:Int, replicaActor:RsNodeActor, own:SyncState ):IPromise<SyncState>
+    fun introduce(id:Int, replicaActor:RsNodeActor, own:Long ):IPromise<Long>
             = reject(RuntimeException("UNIMPLEMENTED"));
 
     fun cfg():IPromise<RsClusterDef>
@@ -40,8 +38,8 @@ class RsNodeActor : Actor<RsNodeActor>() {
 
     fun queryNewIds(afert:Long, cnt:Int):IPromise<IdList>
             =reject(RuntimeException("UNIMPLEMENTED"));
-    fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList>
-            = reject(RuntimeException("UNIMPLEMENTED"));
+//    fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList>
+//            = reject(RuntimeException("UNIMPLEMENTED"));
     fun get(oid:ByteArray):IPromise<ByteArray>
             = reject(RuntimeException("UNIMPLEMENTED"));
 

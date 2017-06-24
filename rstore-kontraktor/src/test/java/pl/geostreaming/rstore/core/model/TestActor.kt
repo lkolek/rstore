@@ -39,12 +39,10 @@ class TestActor {
 
 
 
-
-    @Test
-    fun test3() {
+    fun makeAct(id:Int):Pair<RsNodeActor, RsNodeActor>{
         val act = Actors.AsActor(RsNodeActorImpl::class.java)
-        act.init(1,clDef,"../data/tmp2.db",false)
-        val port = 4001;
+        act.init(id,clDef,"../data/tmp"+id+".db",false)
+        val port = 4000 + id;
         val enc = SerializerType.FSTSer;
 
         /**/
@@ -55,6 +53,14 @@ class TestActor {
         val con = TCPConnectable(RsNodeActor::class.java, "localhost", port)
 //                .serType(enc);
         val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
+
+        return Pair(act,actRem);
+    }
+
+//    @Test
+    fun test3() {
+        val (act,actRem) = makeAct(1);
+
         /**/
 
         /*
@@ -65,8 +71,8 @@ class TestActor {
         val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
         */
 
-//        actRem.listenIds( Callback{ (s,id), err -> println("INS: " + s + "->" + id.toHexString() )})
-        actRem.listenIds( Callback{ (s,id), err -> println("INS2: " + s + "->" + id.toHexString() )})
+        actRem.listenIds( Callback{ (s,id), err -> println("INS: " + s + "->" + id.toHexString() )})
+//        actRem.listenIds( Callback{ (s,id), err -> println("INS2: " + s + "->" + id.toHexString() )})
 
         println("inserting -------------")
 
@@ -95,7 +101,10 @@ class TestActor {
 
             id2
                     .takeLast(100)
-                    .forEachIndexed { i, (_, x) -> x.then { r, err -> println("" + i + ":" + r.toHexString()) }.await() }
+                    .forEachIndexed { i, (_, x) ->
+                        x.then { r, err -> println("" + i + ":" + r.toHexString());
+
+                        }.await() }
 
             from += ids.size;
         }
@@ -103,6 +112,102 @@ class TestActor {
 
         actRem.close();
         act.stop();
-        pp.close().await()
+//        pp.close().await()
+    }
+
+
+    @Test
+    fun test4() {
+        val (act,actRem) = makeAct(1);
+
+        val (act2,actRem2) = makeAct(2);
+
+
+        actRem2.listenIds( Callback{ (s,id), err -> println("INS to 2: " + s + "->" + id.toHexString() )})
+
+        // TODO: don't know seqId, it should be xxxx
+        actRem2.introduce(1, actRem, 0 ).await();
+
+
+        actRem.listenIds( Callback{ (s,id), err -> println("INS: " + s + "->" + id.toHexString() )})
+//        actRem.listenIds( Callback{ (s,id), err -> println("INS2: " + s + "->" + id.toHexString() )})
+
+        println("inserting -------------")
+
+        val ac = AtomicInteger()
+        var add = "ldkajsdkh lksjad lkjas dlkjahs lkhsalk lkasjhdkjas lkdjalkjhsdklahskljhkl djalks d"
+//        (0..4).forEach { add = add+add }
+
+        val pendingAdds = AtomicInteger();
+        val xx = ArrayList((0..3_000).map {
+            x ->
+
+            Thread.sleep(10);
+
+            while(actRem.isMailboxPressured || pendingAdds.get() > 500){
+                Actors.yield();
+            };
+            Pair(x,actRem.put(("abc" + x +"test" + add).toByteArray(),true)
+                    .then { x,y ->  pendingAdds.decrementAndGet(); }
+            )
+
+        });
+
+        xx
+            .reversed().take(100).reversed()
+            .forEach{ (i,x) -> try {  val y = x. await(); println(""+ i +":" + y.toHexString()) }catch(ex:Exception){}}
+
+        // wait till finish
+        while(!actRem.isEmpty){
+            Actors.yield();
+        }
+
+        var from = 0L;
+        for(ixx in 1..10) {
+            println("queryIds -------------")
+            val ids = ArrayList(actRem.queryNewIds(from, 100_000).await().ids);
+            ids.forEachIndexed { i, x -> println("" + i + ":" + x.toHexString()) }
+
+            println("get -----------")
+            val id2 = ArrayList(ids.map { x -> Pair(x, actRem.get(x)) });
+
+            id2
+                    .takeLast(100)
+                    .forEachIndexed { i, (_, x) ->
+                        x.then { r, err -> println("" + i + ":" + r.toHexString());
+
+                        }.await() }
+
+            from += ids.size;
+        }
+
+        println("form 2 ===============")
+        for(ixx in 1..10) {
+            println("queryIds -------------")
+            val ids = ArrayList(actRem2.queryNewIds(from, 100_000).await().ids);
+            ids.forEachIndexed { i, x -> println("" + i + ":" + x.toHexString()) }
+
+            println("get -----------")
+            val id2 = ArrayList(ids.map { x -> Pair(x, actRem2.get(x)) });
+
+            id2
+                    .takeLast(100)
+                    .forEachIndexed { i, (_, x) ->
+                        x.then { r, err -> println("" + i + ":" + r.toHexString());
+
+                        }.await() }
+
+            from += ids.size;
+        }
+
+        println("waiting -----------")
+        Thread.sleep(10_000)
+        println("stop -----------")
+
+        actRem.close();
+        act.stop();
+        actRem2.close();
+        act2.stop();
+//        pp.close().await()
     }
 }

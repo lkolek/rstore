@@ -11,7 +11,6 @@ import pl.geostreaming.rstore.core.model.RsClusterDef
 import pl.geostreaming.rstore.core.node.IdList
 import pl.geostreaming.rstore.core.node.NotThisNode
 import pl.geostreaming.rstore.core.node.RsNodeActor
-import pl.geostreaming.rstore.core.node.SyncState
 
 /**
  * Created by lkolek on 21.06.2017.
@@ -22,33 +21,34 @@ class RsNodeActorImpl:RsNodeActor(){
             val db:DB,
             val objs:HTreeMap<ByteArray,ByteArray>,
             val seq:Atomic.Long,
-            val seq2id:BTreeMap<Long,ByteArray>,
-            val lastSeqIdsLocal:BTreeMap<Int,Long>,
-            val lastSeqIdsRemote:BTreeMap<Int,Long>
-
+            val seq2id:BTreeMap<Long,ByteArray>
     );
 
     final lateinit var id:Integer;
     final lateinit var store:Store;
     final lateinit var cfg:RsClusterDef;
     final lateinit var cl: RsCluster;
+    final lateinit var retriver:RetriverActor;
 
     final var delCommitMs:Long = 5000;
     final var delCommit = false;
     final var lastCommitPr: IPromise<Void>? = null;
 
 
-    final val lastContinuousAppliedSeq:Map<Int,Long> = HashMap();
-
-
     final val listenIdsCalbacks = ArrayList<Callback<Pair<Long, ByteArray>>>();
 
+
+    class RemoteReplicaReg( val remoteRepl:RsNodeActor, val replicator: Replicator );
+    final val remoteRepls:MutableMap<Int,RemoteReplicaReg> = HashMap();
 
     @Local
     fun init(id:Int, cfg1: RsClusterDef, dbLocation:String, dbTrans:Boolean = false) {
         this.cfg = cfg1;
         this.id = Integer(id);
         this.cl = RsCluster(cfg1);
+
+        this.retriver = AsActor(RetriverActor::class.java)
+        this.retriver.init( self() );
 
         println("initialized, cfg=" + cfg)
         prepare(dbLocation,dbTrans);
@@ -57,9 +57,20 @@ class RsNodeActorImpl:RsNodeActor(){
     /**
      * called from other repl for introduction
      */
-    override fun introduce(id: Int, replicaActor: RsNodeActor, own: SyncState): IPromise<SyncState> {
+    override fun introduce(id: Int, replicaActor: RsNodeActor, own: Long): IPromise<Long> {
 
-        return super.introduce(id, replicaActor, own)
+        if( id != this.id.toInt() &&  cl.hasCommons(this.id.toInt(),id)){
+            // for now: ignore if already exist TODO change / reitroduce / validate
+            if(!remoteRepls.containsKey(id)){
+                val replicator= Replicator( self(),
+                        { oid -> !store.objs.containsKey(oid) && cl.isReplicaForObjectId(oid, this.id.toInt()) },
+                        id,replicaActor,retriver,store.db)
+                remoteRepls.put(id, RemoteReplicaReg(replicaActor, replicator))
+            }
+            // TODO: update lastSeq!
+        }
+
+        return resolve( store.seq.get() );
     }
 
 
@@ -85,23 +96,12 @@ class RsNodeActorImpl:RsNodeActor(){
                 .counterEnable()
                 .createOrOpen();
 
-        val lastSeqIdsLocal = db.treeMap("lastSeqIds")
-                .keySerializer(Serializer.INTEGER)
-                .valueSerializer(Serializer.LONG)
-                .createOrOpen();
-        val lastSeqIdsRemote = db.treeMap("lastSeqIds")
-                .keySerializer(Serializer.INTEGER)
-                .valueSerializer(Serializer.LONG)
-                .createOrOpen();
-
-        store = Store(db,objs, db.atomicLong("seq").createOrOpen(),seq2id,lastSeqIdsLocal,lastSeqIdsRemote);
+        store = Store(db,objs, db.atomicLong("seq").createOrOpen(),seq2id);
 
         // init
         cfg.nodes
                 .filter { n -> cl.hasCommons(n.id,id.toInt()) && n.id != id.toInt() }
                 .forEach{ n ->
-                    lastSeqIdsLocal.putIfAbsent(n.id, -1L)
-                    lastSeqIdsRemote.putIfAbsent(n.id, -1L)
                 }
     }
 
@@ -125,12 +125,14 @@ class RsNodeActorImpl:RsNodeActor(){
 
             if( !store.objs.containsKey(oid)) {
                 store.objs.putIfAbsent(oid,obj)
+
+                // TODO: replicate if needed
+                // if replicate, seqId generation / placing should be delayed to avoid double puts
+
                 val sId = store.seq.incrementAndGet();
                 store.seq2id.put(sId, oid);
-                // TODO: replicate if needed
 
                 listenIdsCalbacks.forEach { cb-> cb.stream(Pair(sId,oid)) }
-
                 delayedCommit();
             }
             pr.resolve(oid);
@@ -148,6 +150,11 @@ class RsNodeActorImpl:RsNodeActor(){
         return pr;
     }
 
+//    @Local
+//    fun internalPut(oid:ByteArray, obj: ByteArray): IPromise<ByteArray>{
+//        if( !store.objs.containsKey(oid))
+//    }
+
     override fun queryNewIds(after: Long, cnt: Int): IPromise<IdList> {
         val r1 = ArrayList(
                 store.seq2id.tailMap(after,false).values.take(cnt)
@@ -155,29 +162,29 @@ class RsNodeActorImpl:RsNodeActor(){
         return resolve( IdList(r1, after, store.seq.get() ));
     }
 
-    /**
-     *
-     */
-    override fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList> {
-        val r1 = ArrayList(
-                store.seq2id.tailMap(after,false).values
-                        .filter{
-                            cl.isReplicaForObjectId(it,replId)
-                        }
-                        .take(cnt)
-        );
-
-        // calc last seqId for repl
-        // it should be retrived
-        val lastSeqList = store.seq2id.descendingMap()
-                ?.filter { cl.isReplicaForObjectId(it.value,replId) }
-                ?.toList()
-                ?.take(1)
-                ?.map { it.first };
-        val lastSeqId = if(lastSeqList != null &&  !lastSeqList.isEmpty()) {  lastSeqList.first()} else {0L}
-
-        return resolve( IdList(r1, after, lastSeqId ) );
-    }
+//    /**
+//     *
+//     */
+//    override fun queryNewIdsFor(replId:Int, after: Long, cnt: Int): IPromise<IdList> {
+//        val r1 = ArrayList(
+//                store.seq2id.tailMap(after,false).values
+//                        .filter{
+//                            cl.isReplicaForObjectId(it,replId)
+//                        }
+//                        .take(cnt)
+//        );
+//
+//        // calc last seqId for repl
+//        // it should be retrived
+//        val lastSeqList = store.seq2id.descendingMap()
+//                ?.filter { cl.isReplicaForObjectId(it.value,replId) }
+//                ?.toList()
+//                ?.take(1)
+//                ?.map { it.first };
+//        val lastSeqId = if(lastSeqList != null &&  !lastSeqList.isEmpty()) {  lastSeqList.first()} else {0L}
+//
+//        return resolve( IdList(r1, after, lastSeqId ) );
+//    }
 
     override fun stop() {
         super.stop()
