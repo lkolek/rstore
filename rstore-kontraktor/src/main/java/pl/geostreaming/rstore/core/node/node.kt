@@ -33,8 +33,6 @@ class RsNodeActor : Actor<RsNodeActor>() {
     fun introduce(id:Int, replicaActor:RsNodeActor, own:SyncState ):IPromise<SyncState>
             = reject(RuntimeException("UNIMPLEMENTED"));
 
-    fun test1(test:String):IPromise<String>
-            =reject(RuntimeException("UNIMPLEMENTED"));
     fun cfg():IPromise<RsClusterDef>
             =reject(RuntimeException("UNIMPLEMENTED"));
     fun put(obj:ByteArray, onlyThisNode:Boolean):IPromise<ByteArray>

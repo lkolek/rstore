@@ -37,43 +37,8 @@ class TestActor {
         act.init(id,clDef,dbLoc,useTr)
     }
 
-//    @Test
-    fun test1() {
-        val act = Actors.AsActor(RsNodeActorImpl::class.java)
 
-        val x = act.test1("abc").await();
-        println("X:" + x);
 
-        act.stop();
-    }
-
-//    @Test
-    fun test2() {
-        val act = Actors.AsActor(RsNodeActorImpl::class.java)
-        act.init(1,clDef,"../data/tmp.db")
-        val port = 4001;
-        val enc = SerializerType.FSTSer;
-
-        val pp = TCPNIOPublisher(act, port)
-                .serType(enc)
-                .publish().await();
-
-        val con = TCPConnectable(RsNodeActorImpl::class.java, "localhost", port).serType(enc);
-        val actRem = con.connect<RsNodeActor>{ _, _ -> println("disconnect") }.await()
-
-        val cfg = act.cfg().await();
-        println("cfg local:" + cfg);
-
-        val cfg2 = actRem.cfg().await();
-        println("cfg:" + cfg2);
-
-        val x = actRem.test1("abc").await();
-        println("X:" + x);
-
-        actRem.close();
-        act.stop();
-        pp.close().await()
-    }
 
     @Test
     fun test3() {

@@ -105,13 +105,7 @@ class RsNodeActorImpl:RsNodeActor(){
                 }
     }
 
-    override fun test1(test:String): IPromise<String> {
-        val pr = Promise<String>();
 
-        pr.resolve("abc")
-
-        return pr;
-    }
 
     override fun cfg(): IPromise<RsClusterDef> {
         val ret= Promise<RsClusterDef>();
