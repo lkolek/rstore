@@ -3,8 +3,11 @@ version '0.1-SNAPSHOT'
 
 apply plugin: 'java'
 apply plugin: 'kotlin'
+//apply plugin: 'application'
+//mainClassName = 'pl.geostreaming.rstore.core.TmpMainKt'
 
 sourceCompatibility = 1.8
+
 
 repositories {
     mavenCentral()
@@ -13,8 +16,8 @@ repositories {
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$rootProject.ext.kotlin_version"
 //    compile "de.ruedigermoeller:kontraktor:3.22",
-//            "de.ruedigermoeller:kontraktor-http:3.22",
-//        "org.mapdb:mapdb:${rootProject.ext.mapdbVersion}"
+//            "de.ruedigermoeller:kontraktor-http:3.22"
+//    compile     "org.mapdb:mapdb:${rootProject.ext.mapdbVersion}"
     compile "com.fasterxml.jackson.module:jackson-module-kotlin:2.8.7"
 
 
