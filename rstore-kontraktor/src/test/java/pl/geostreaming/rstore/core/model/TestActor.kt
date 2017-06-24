@@ -128,6 +128,7 @@ class TestActor {
 
         // TODO: don't know seqId, it should be xxxx
         actRem2.introduce(1, actRem, 0 ).await();
+        actRem.introduce(2, actRem2, 0 ).await();
 
 
         actRem.listenIds( Callback{ (s,id), err -> if(s % 50L == 0L) println("INS: " + s + "->" + id.toHexString() )})
@@ -135,21 +136,30 @@ class TestActor {
 
 
 
-        val finished = AtomicBoolean(false);
+        val shouldFinished = AtomicBoolean(false);
+        val finished1 = AtomicBoolean(false);
+        val finished2 = AtomicBoolean(false);
 
         val ts0 = System.currentTimeMillis();
         actRem2.listenHeartbit(Callback { result, error -> if(Actors.isResult(error)) {
             println("####  HEARTBIT: " + result.replId + ", toPr=" + result.totalBelow)
-            if(result.totalBelow <= 0L){
+            if(result.totalBelow <= 0L && shouldFinished.get()){
                 println("FINISHED, t=" + (System.currentTimeMillis()-ts0));
-                finished.set(true)
+                finished2.set(true)
+            }
+        } })
+        actRem.listenHeartbit(Callback { result, error -> if(Actors.isResult(error)) {
+            println("####  HEARTBIT: " + result.replId + ", toPr=" + result.totalBelow)
+            if(result.totalBelow <= 0L && shouldFinished.get()){
+                println("FINISHED, t=" + (System.currentTimeMillis()-ts0));
+                finished1.set(true)
             }
         } })
         println("inserting -------------")
 
         val ac = AtomicInteger()
         var add = "ldkajsdkh lksjad lkjas dlkjahs lkhsalk lkasjhdkjas lkdjalkjhsdklahskljhkl djalks d"
-//        (0..4).forEach { add = add+add }
+        (0..4).forEach { add = add+add }
 
         val pendingAdds = AtomicInteger();
         val xx = ArrayList((0..30_000).map {
@@ -165,13 +175,15 @@ class TestActor {
             val ret = Pair(x,actRem.put(obj,true)
                     .onResult{ pendingAdds.decrementAndGet(); }
                     .onError{pendingAdds.decrementAndGet();}
+                    .onTimeout{x ->pendingAdds.decrementAndGet();}
             )
 
 //            pendingAdds.incrementAndGet();
 //            actRem2.put(obj,true)
 //                    .onResult{ pendingAdds.decrementAndGet(); }
-//                    .onError{pendingAdds.decrementAndGet();};
-//
+//                    .onError{pendingAdds.decrementAndGet();}
+//                    .onTimeout{x ->pendingAdds.decrementAndGet();}
+
 
             ret;
         });
@@ -182,6 +194,7 @@ class TestActor {
 
         val ts1 = System.currentTimeMillis()
         println("=== inserted all to 1, t=" +(ts1-ts0));
+        shouldFinished.set(true);
 
         xx
             .reversed().take(100).reversed()
@@ -233,7 +246,7 @@ class TestActor {
 
         println("waiting -----------")
 
-        while(! finished.get())
+        while(! (finished1.get() && finished2.get()))
             Thread.sleep(1_000)
         println("stop -----------")
 

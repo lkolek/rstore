@@ -70,9 +70,11 @@ class RetriverActor  : Actor<RetriverActor>(){
         }
         else {
             currentOps.put(oid, notify);
-            fromRepl.get(oid.hash).onResult {
-                x ->
-                myRepl.put(x, true).onResult {
+            fromRepl.get(oid.hash)
+                    .timeoutIn(500)
+                .onResult { x ->
+                myRepl.put(x, true)
+                        .timeoutIn(500).onResult {
                     currentOps.get(oid)?.complete();
                     currentOps.remove(oid)
 //                    println("RETRIVEed :" + oid.hash.toHexString() )
@@ -164,7 +166,7 @@ class Replicator (
             lastSeqIdRemote.set(from);
         }
         if(!queryingSeqIds )
-            doUpdateSeq(fullyReplicatedTo.get(), from);
+            doUpdateSeq(fullyReplicatedTo.get(), lastSeqIdRemote.get());
 
     }
 
@@ -172,6 +174,7 @@ class Replicator (
         queryingSeqIds = true;
         fromRepl
             .queryNewIds(after, 1000)
+            .timeoutIn(500)
             .onResult {
                 x-> val cnt = x.ids.size;
                 println("do update received:" + (after+1) + " - " + (after + cnt));
@@ -195,6 +198,7 @@ class Replicator (
                 }
             }
                 .onError { queryingSeqIds = false; }
+                .onTimeout { x-> queryingSeqIds = false; }
     }
 
     fun tryRepl(i:ToReplicate){
@@ -224,9 +228,16 @@ class Replicator (
         }
     }
 
+
+    var lastTime = System.currentTimeMillis();
     fun processSome(){
-        println("Process some called, fullReplTo:" + fullyReplicatedTo.get() + ", lastSeqIdRemote=" + lastSeqIdRemote.get()
-                + ", entry[0]:" + if(toReplicate.size>0 ){"" + toReplicate.entries.first().key} else {""} )
+
+        if(System.currentTimeMillis() - lastTime > 2000){
+            println("Process some called, fullReplTo:" + fullyReplicatedTo.get() + ", lastSeqIdRemote=" + lastSeqIdRemote.get()
+                    + ", entry[0]:" + if(toReplicate.size>0 ){"" + toReplicate.entries.first().key} else {""} );
+            lastTime = System.currentTimeMillis();
+        }
+
         val CNT = 50;
         if(toReplicate.isEmpty()){
             replicating = false;
@@ -235,6 +246,11 @@ class Replicator (
         else {
             replicating = true; // to assure
             performCleaning();
+
+            if(toReplicate.size>0 && toReplicate.entries.first().key > fullyReplicatedTo.get()){
+                // this is bad, we don't have an entry:
+                updateLastSeqTo(fullyReplicatedTo.get());
+            }
 
             val toProc = ArrayList(toReplicate.entries.filter { (k, v) -> v is ToReplicate && !v.processing }.take(CNT));
             toProc.forEach { x -> if (!retriver.isMailboxPressured) {
@@ -282,6 +298,9 @@ class Replicator (
 
     protected fun performCleaning(){
         var frt = fullyReplicatedTo.get();
+        while(toReplicate.size > 0 && toReplicate.firstEntry().key <= frt){
+            toReplicate.remove(toReplicate.firstEntry().key)
+        }
         while( toReplicate.size >0 &&  toReplicate.firstEntry().key <= frt+1 && toReplicate.firstEntry().value.completed()){
             frt = toReplicate.firstEntry().key;
             toReplicate.remove(toReplicate.firstEntry().key)
