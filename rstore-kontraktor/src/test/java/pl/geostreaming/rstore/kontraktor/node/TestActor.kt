@@ -12,6 +12,7 @@ import org.nustaq.kontraktor.remoting.websockets.WebSocketConnectable
 import org.nustaq.kontraktor.remoting.websockets.WebSocketPublisher
 import pl.geostreaming.rstore.core.model.RsCluster
 import pl.geostreaming.rstore.core.model.RsClusterDef
+import pl.geostreaming.rstore.core.util.toHexString
 import java.nio.ByteBuffer
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger

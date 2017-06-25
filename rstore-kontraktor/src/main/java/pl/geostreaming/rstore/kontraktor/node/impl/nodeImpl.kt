@@ -1,16 +1,17 @@
 package pl.geostreaming.rstore.kontraktor.node.impl
 
+import pl.geostreaming.rstore.core.model.RsCluster
 import pl.geostreaming.rstore.core.model.RsClusterDef
-import pl.geostreaming.rstore.core.node.HeartbitData
-import pl.geostreaming.rstore.core.node.IdList
-import pl.geostreaming.rstore.core.node.NotThisNode
-import pl.geostreaming.rstore.core.node.RsNodeActor
+import pl.geostreaming.rstore.kontraktor.node.HeartbitData
+import pl.geostreaming.rstore.kontraktor.node.IdList
+import pl.geostreaming.rstore.kontraktor.node.NotThisNode
+import pl.geostreaming.rstore.kontraktor.node.RsNodeActor
 
 /**
  * Created by lkolek on 21.06.2017.
  */
 
-class RsNodeActorImpl: pl.geostreaming.rstore.core.node.RsNodeActor(){
+class RsNodeActorImpl: pl.geostreaming.rstore.kontraktor.node.RsNodeActor(){
     data class Store(
             val db: org.mapdb.DB,
             val objs: org.mapdb.HTreeMap<ByteArray, ByteArray>,
@@ -21,9 +22,9 @@ class RsNodeActorImpl: pl.geostreaming.rstore.core.node.RsNodeActor(){
 
 
     final lateinit var id:Integer;
-    final lateinit var store: pl.geostreaming.rstore.kontraktor.node.RsNodeActorImpl.Store;
-    final lateinit var cfg: pl.geostreaming.rstore.core.model.RsClusterDef;
-    final lateinit var cl: pl.geostreaming.rstore.core.model.RsCluster;
+    final lateinit var store: RsNodeActorImpl.Store;
+    final lateinit var cfg: RsClusterDef;
+    final lateinit var cl: RsCluster;
     final lateinit var retriver: RetriverActor;
 
     final var delCommitMs:Long = 1000;
@@ -35,8 +36,8 @@ class RsNodeActorImpl: pl.geostreaming.rstore.core.node.RsNodeActor(){
     final val heartbitCallbacks = ArrayList<org.nustaq.kontraktor.Callback<HeartbitData>>();
 
 
-    class RemoteReplicaReg(val remoteRepl: pl.geostreaming.rstore.core.node.RsNodeActor, val replicator: Replicator);
-    final val remoteRepls:MutableMap<Int, pl.geostreaming.rstore.kontraktor.node.RsNodeActorImpl.RemoteReplicaReg> = HashMap();
+    class RemoteReplicaReg(val remoteRepl: RsNodeActor, val replicator: Replicator);
+    final val remoteRepls:MutableMap<Int, RsNodeActorImpl.RemoteReplicaReg> = HashMap();
 
     @org.nustaq.kontraktor.annotations.Local
     fun init(id:Int, cfg1: pl.geostreaming.rstore.core.model.RsClusterDef, dbLocation:String, dbTrans:Boolean = false) {
@@ -44,7 +45,7 @@ class RsNodeActorImpl: pl.geostreaming.rstore.core.node.RsNodeActor(){
         this.id = Integer(id);
         this.cl = pl.geostreaming.rstore.core.model.RsCluster(cfg1);
 
-        this.retriver = AsActor(pl.geostreaming.rstore.core.node.impl.RetriverActor::class.java, 500)
+        this.retriver = AsActor(pl.geostreaming.rstore.kontraktor.node.impl.RetriverActor::class.java, 500)
         this.retriver.init( self() );
 
         println("initialized, cfg=" + cfg)
@@ -55,7 +56,7 @@ class RsNodeActorImpl: pl.geostreaming.rstore.core.node.RsNodeActor(){
     }
 
     protected fun tick(){
-        val hb = pl.geostreaming.rstore.core.node.HeartbitData(System.currentTimeMillis(), this.id.toInt(),
+        val hb = pl.geostreaming.rstore.kontraktor.node.HeartbitData(System.currentTimeMillis(), this.id.toInt(),
                 this.store.seq.get(),
                 remoteRepls.values.map { x -> x.replicator.below() }.sum()
         )
@@ -67,7 +68,7 @@ class RsNodeActorImpl: pl.geostreaming.rstore.core.node.RsNodeActor(){
     /**
      * called from other repl for introduction
      */
-    override fun introduce(id: Int, replicaActor: pl.geostreaming.rstore.core.node.RsNodeActor, own: Long): org.nustaq.kontraktor.IPromise<Long> {
+    override fun introduce(id: Int, replicaActor: pl.geostreaming.rstore.kontraktor.node.RsNodeActor, own: Long): org.nustaq.kontraktor.IPromise<Long> {
 
         if( id != this.id.toInt() &&  cl.hasCommons(this.id.toInt(),id)){
             // for now: ignore if already exist TODO change / reitroduce / validate
@@ -75,7 +76,7 @@ class RsNodeActorImpl: pl.geostreaming.rstore.core.node.RsNodeActor(){
                 val replicator= Replicator( self(),
                         { oid -> !store.objs.containsKey(oid) && cl.isReplicaForObjectId(oid, this.id.toInt()) },
                         id,replicaActor,retriver,store.db)
-                remoteRepls.put(id, pl.geostreaming.rstore.kontraktor.node.RsNodeActorImpl.RemoteReplicaReg(replicaActor, replicator))
+                remoteRepls.put(id, RsNodeActorImpl.RemoteReplicaReg(replicaActor, replicator))
             }
             // TODO: update lastSeq!
         }
@@ -106,7 +107,7 @@ class RsNodeActorImpl: pl.geostreaming.rstore.core.node.RsNodeActor(){
                 .counterEnable()
                 .createOrOpen();
 
-        store = pl.geostreaming.rstore.kontraktor.node.RsNodeActorImpl.Store(db, objs, db.atomicLong("seq").createOrOpen(), seq2id);
+        store = RsNodeActorImpl.Store(db, objs, db.atomicLong("seq").createOrOpen(), seq2id);
 
         // init
         cfg.nodes
@@ -150,12 +151,12 @@ class RsNodeActorImpl: pl.geostreaming.rstore.core.node.RsNodeActor(){
             val replicas = cl.replicasForObjectId(oid);
 
             if(onlyThisNode) {
-                pr.reject(pl.geostreaming.rstore.core.node.NotThisNode("Not this node"));
+                pr.reject(pl.geostreaming.rstore.kontraktor.node.NotThisNode("Not this node"));
             } else {
                 // TODO: call other replicas
                 val r0 = replicas.get(0);
                 // ... need actor
-                pr.reject(pl.geostreaming.rstore.core.node.NotThisNode("Not this node"));
+                pr.reject(pl.geostreaming.rstore.kontraktor.node.NotThisNode("Not this node"));
             }
         }
         return pr;
@@ -170,7 +171,7 @@ class RsNodeActorImpl: pl.geostreaming.rstore.core.node.RsNodeActor(){
         val r1 = ArrayList(
                 store.seq2id.tailMap(after,false).entries.take(cnt).map { x -> Pair(x.key,x.value) }
         );
-        return resolve(pl.geostreaming.rstore.core.node.IdList(r1, after, store.seq.get()));
+        return resolve(pl.geostreaming.rstore.kontraktor.node.IdList(r1, after, store.seq.get()));
     }
 
 //    /**

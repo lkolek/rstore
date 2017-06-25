@@ -5,7 +5,7 @@ import org.mapdb.DB
 import org.nustaq.kontraktor.*
 import org.nustaq.kontraktor.annotations.Local
 import pl.geostreaming.kt.Open
-import pl.geostreaming.rstore.core.node.RsNodeActor
+import pl.geostreaming.rstore.kontraktor.node.RsNodeActor
 import java.io.Serializable
 import java.nio.ByteBuffer
 import java.util.*
@@ -28,7 +28,7 @@ class OID(val hash:ByteArray): Serializable {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other?.javaClass != javaClass) return false
-        other as pl.geostreaming.rstore.kontraktor.node.OID
+        other as OID
         if (!Arrays.equals(hash, other.hash)) return false
         return true
     }
@@ -40,19 +40,19 @@ class OID(val hash:ByteArray): Serializable {
 @Open
 class RetriverActor  : Actor<RetriverActor>(){
     private var TIMEOUT:Long = 2500;
-    private lateinit var myRepl: pl.geostreaming.rstore.core.node.RsNodeActor
+    private lateinit var myRepl: pl.geostreaming.rstore.kontraktor.node.RsNodeActor
 
     @Local
-    fun init(myRepl: pl.geostreaming.rstore.core.node.RsNodeActor){
+    fun init(myRepl: pl.geostreaming.rstore.kontraktor.node.RsNodeActor){
         this.myRepl = myRepl;
     }
 
     private val currentOps = HashMap<OID, IPromise<Void> >();
-    private fun has(oid: pl.geostreaming.rstore.kontraktor.node.OID):Boolean{
+    private fun has(oid: OID):Boolean{
         return currentOps.containsKey(oid);
     }
 
-    fun replicate(oid: pl.geostreaming.rstore.kontraktor.node.OID, fromRepl: pl.geostreaming.rstore.core.node.RsNodeActor): IPromise<Void> {
+    fun replicate(oid: OID, fromRepl: RsNodeActor): IPromise<Void> {
 //        println("RETRIVE try:" + oid.hash.toHexString() )
         val notify = Promise<Void>();
         if(has(oid)){
@@ -102,11 +102,11 @@ class RetriverActor  : Actor<RetriverActor>(){
  * This class provides replication for r1 to r2
  */
 class Replicator (
-        val myRepl: pl.geostreaming.rstore.core.node.RsNodeActor,
+        val myRepl: RsNodeActor,
         val checker: (ByteArray) -> Boolean,
         val fromReplId:Int,
-        val fromRepl: pl.geostreaming.rstore.core.node.RsNodeActor,
-        val retriver: pl.geostreaming.rstore.kontraktor.node.RetriverActor,
+        val fromRepl: RsNodeActor,
+        val retriver: RetriverActor,
         val db: DB) {
     val lastSeqIdRemote: Atomic.Long = db.atomicLong("lastSeqIdRemote." + fromReplId).createOrOpen()
     val fullyReplicatedTo: Atomic.Long = db.atomicLong("fullyReplicatedTo." + fromReplId).createOrOpen()
@@ -123,7 +123,7 @@ class Replicator (
         open fun completed():Boolean = true;
     }
 
-    data class ToReplicate( val seqId:Long,val objId: pl.geostreaming.rstore.kontraktor.node.OID): pl.geostreaming.rstore.kontraktor.node.Replicator.ReplOp(true){
+    data class ToReplicate( val seqId:Long,val objId: OID): Replicator.ReplOp(true){
 
         var attemts: Int = 0
         var replicated: Boolean = false
@@ -190,7 +190,7 @@ class Replicator (
 //                    println("do update received:" + (x.ids.get(0).first) + " - " + (x.ids.get(x.ids.size - 1).first));
                     x.ids.forEach {
                         (seq, id) ->
-                        append((seq), pl.geostreaming.rstore.kontraktor.node.OID(id), checker.invoke(id))
+                        append((seq), OID(id), checker.invoke(id))
                     }
                     performCleaning();
 
@@ -213,7 +213,7 @@ class Replicator (
                 .onTimeout { x-> queryingSeqIds = false; }
     }
 
-    fun tryRepl(i: pl.geostreaming.rstore.kontraktor.node.Replicator.ToReplicate){
+    fun tryRepl(i: Replicator.ToReplicate){
         if(!checker.invoke(i.objId.hash)){
             i.replicated = true;
             return;
@@ -266,7 +266,7 @@ class Replicator (
 
             val toProc = ArrayList(toReplicate.entries.filter { (k, v) -> v is ToReplicate && !v.processing }.take(CNT));
             toProc.forEach { x -> if (!retriver.isMailboxPressured) {
-                tryRepl(x.value as pl.geostreaming.rstore.kontraktor.node.Replicator.ToReplicate)
+                tryRepl(x.value as Replicator.ToReplicate)
             }; }
 
             myRepl.delayed(50){processSome()}
@@ -276,16 +276,16 @@ class Replicator (
     /**
      * called on new seqId from remote replica
      */
-    fun append(seqId:Long, objId: pl.geostreaming.rstore.kontraktor.node.OID, needsReplication:Boolean ){
+    fun append(seqId:Long, objId: OID, needsReplication:Boolean ){
         if (!needsReplication && seqId <= fullyReplicatedTo.get() + 1) {
             // optimisation
             fullyReplicatedTo.incrementAndGet();
         } else {
             if (seqId > fullyReplicatedTo.get() && !toReplicate.containsKey(seqId)) {
                 if (needsReplication)
-                    toReplicate.put(seqId, pl.geostreaming.rstore.kontraktor.node.Replicator.ToReplicate(seqId, objId))
+                    toReplicate.put(seqId, Replicator.ToReplicate(seqId, objId))
                 else
-                    toReplicate.put(seqId, pl.geostreaming.rstore.kontraktor.node.Replicator.ReplOp())
+                    toReplicate.put(seqId, Replicator.ReplOp())
             }
 
             if (!replicating) {
@@ -301,7 +301,7 @@ class Replicator (
     fun wasReplicated( seqId: Long){
         if(seqId > fullyReplicatedTo.get() && toReplicate.containsKey(seqId)){
             val x = toReplicate.get(seqId)
-            if( x is pl.geostreaming.rstore.kontraktor.node.Replicator.ToReplicate){
+            if( x is Replicator.ToReplicate){
                 x.replicated = true;
             }
         }
