@@ -20,9 +20,9 @@ data class IdList(
 ):Serializable;
 
 
-data class HeartbitData(val time:Long, val replId:Int, val totalBelow:Long):Serializable{
+data class HeartbitData(val time:Long, val replId:Int, val lastSeq:Long, val totalBelow:Long):Serializable{
     override fun toString(): String {
-        return "HeartbitData(time=$time, replId=$replId, totalBelow=$totalBelow)"
+        return "HeartbitData(time=$time, replId=$replId, lastSeq=$lastSeq, totalBelow=$totalBelow)"
     }
 }
 

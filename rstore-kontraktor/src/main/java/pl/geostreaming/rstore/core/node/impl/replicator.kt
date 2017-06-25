@@ -39,7 +39,7 @@ class OID(val hash:ByteArray):Serializable{
  */
 @Open
 class RetriverActor  : Actor<RetriverActor>(){
-
+    private var TIMEOUT:Long = 2500;
     private lateinit var myRepl:RsNodeActor
 
     @Local
@@ -68,28 +68,28 @@ class RetriverActor  : Actor<RetriverActor>(){
         else {
             currentOps.put(oid, notify);
             fromRepl.get(oid.hash)
-                    .timeoutIn(500)
+                    .timeoutIn(TIMEOUT)
                 .onResult { x ->
                 myRepl.put(x, true)
-                        .timeoutIn(500).onResult {
+                        .timeoutIn(TIMEOUT).onResult {
                     currentOps.get(oid)?.complete();
                     currentOps.remove(oid)
 //                    println("RETRIVEed :" + oid.hash.toHexString() )
-                }.onError {
-                    currentOps.get(oid)?.reject(RuntimeException("Could not get oid"))
+                }.onError { err->
+                    currentOps.get(oid)?.reject(RuntimeException("Could not get oid:" + err))
                     currentOps.remove(oid)
                 }.onTimeout {
                     x->
-                    currentOps.get(oid)?.reject(RuntimeException("Could not get oid"))
+                    currentOps.get(oid)?.reject(RuntimeException("Could not get oid - timeout"))
                     currentOps.remove(oid)
                 }
 
-            }.onError {
-                currentOps.get(oid)?.reject(RuntimeException("Could not get oid"))
+            }.onError { err->
+                currentOps.get(oid)?.reject(RuntimeException("Could not get oid:" + err))
                 currentOps.remove(oid)
             }.onTimeout {
                 x->
-                currentOps.get(oid)?.reject(RuntimeException("Could not get oid"))
+                currentOps.get(oid)?.reject(RuntimeException("Could not get oid - timeout"))
                 currentOps.remove(oid)
             }
 
@@ -158,7 +158,7 @@ class Replicator (
     }
 
     fun updateLastSeqTo(from:Long){
-        println("UPDATE TO called:" + from);
+//        println("UPDATE TO called:" + from);
         if( lastSeqIdRemote.get() < from) {
             lastSeqIdRemote.set(from);
         }
@@ -187,7 +187,7 @@ class Replicator (
                 x-> val cnt = x.ids.size;
                 lastSeqIdRemote.set(Math.max(lastSeqIdRemote.get(),x.lastSeqId))
                 if( cnt >0) {
-                    println("do update received:" + (x.ids.get(0).first) + " - " + (x.ids.get(x.ids.size - 1).first));
+//                    println("do update received:" + (x.ids.get(0).first) + " - " + (x.ids.get(x.ids.size - 1).first));
                     x.ids.forEach {
                         (seq, id) ->
                         append((seq), OID(id), checker.invoke(id))
@@ -229,9 +229,9 @@ class Replicator (
                         i.processing = false;
                         wasReplicated(i.seqId)
                         performCleaning();
-                    }.onError {
+                    }.onError { err->
                         i.processing = false;
-                        println("Some error")
+                        println("Some error:" + err)
                     }.onTimeout(Consumer<Void> {
                         i.processing = false;
                         println("Timeout")

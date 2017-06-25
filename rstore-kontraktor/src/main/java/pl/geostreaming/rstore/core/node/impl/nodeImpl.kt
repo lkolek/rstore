@@ -63,7 +63,10 @@ class RsNodeActorImpl:RsNodeActor(){
     }
 
     protected fun tick(){
-        val hb = HeartbitData(System.currentTimeMillis(), this.id.toInt(), remoteRepls.values.map { x -> x.replicator.below() }.sum() )
+        val hb = HeartbitData(System.currentTimeMillis(), this.id.toInt(),
+                this.store.seq.get(),
+                remoteRepls.values.map { x -> x.replicator.below() }.sum()
+        )
         heartbitCallbacks.forEach{x -> x.stream(hb)}
 
         delayed(1000){tick()}
@@ -133,10 +136,9 @@ class RsNodeActorImpl:RsNodeActor(){
         val pr = Promise<ByteArray>();
 
         val oid = cl.objectId(obj);
-        val replicas = cl.replicasForObjectId(oid);
 
-        val thisNode = replicas.any { it.id == this.id.toInt() }
-        if( thisNode ){
+
+        if( cl.isReplicaForObjectId(oid,this.id.toInt()) ){
 
             if( !store.objs.containsKey(oid)) {
                 store.objs.putIfAbsent(oid,obj)
@@ -153,6 +155,8 @@ class RsNodeActorImpl:RsNodeActor(){
             pr.resolve(oid);
         }
         else {
+            val replicas = cl.replicasForObjectId(oid);
+
             if(onlyThisNode) {
                 pr.reject(NotThisNode("Not this node"));
             } else {
