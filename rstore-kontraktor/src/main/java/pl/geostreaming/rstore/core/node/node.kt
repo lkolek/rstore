@@ -14,7 +14,7 @@ import java.io.Serializable
 class NotThisNode(msg:String):Exception(msg),Serializable;
 
 data class IdList(
-        val ids:ArrayList<ByteArray>,
+        val ids:ArrayList<Pair<Long,ByteArray>>,
         val afterSeqId:Long,
         val lastSeqId:Long
 ):Serializable;

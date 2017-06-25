@@ -95,10 +95,10 @@ class TestActor {
         for(ixx in 1..10) {
             println("queryIds -------------")
             val ids = ArrayList(actRem.queryNewIds(from, 100_000).await().ids);
-            ids.forEachIndexed { i, x -> println("" + i + ":" + x.toHexString()) }
+            ids.forEach { (i, x) -> println("" + i + ":" + x.toHexString()) }
 
             println("get -----------")
-            val id2 = ArrayList(ids.map { x -> Pair(x, actRem.get(x)) });
+            val id2 = ArrayList(ids.map { x -> Pair(x, actRem.get(x.second)) });
 
             id2
                     .takeLast(100)
@@ -124,14 +124,14 @@ class TestActor {
         val (act2,actRem2) = makeAct(2);
 
 
-        actRem2.listenIds( Callback{ (s,id), err -> if(s % 50L == 0L) println("INS to 2: " + s + "->" + id.toHexString() )})
+        actRem2.listenIds( Callback{ (s,id), err -> if(s % 500L == 0L) println("INS to 2: " + s + "->" + id.toHexString() )})
 
         // TODO: don't know seqId, it should be xxxx
         actRem2.introduce(1, actRem, 0 ).await();
         actRem.introduce(2, actRem2, 0 ).await();
 
 
-        actRem.listenIds( Callback{ (s,id), err -> if(s % 50L == 0L) println("INS: " + s + "->" + id.toHexString() )})
+        actRem.listenIds( Callback{ (s,id), err -> if(s % 500L == 0L) println("INS: " + s + "->" + id.toHexString() )})
 //        actRem.listenIds( Callback{ (s,id), err -> println("INS2: " + s + "->" + id.toHexString() )})
 
 
@@ -162,31 +162,32 @@ class TestActor {
         (0..4).forEach { add = add+add }
 
         val pendingAdds = AtomicInteger();
-        val xx = ArrayList((0..30_000).map {
+        (0..1_230_000).forEach {
             x ->
 //            Thread.sleep(1);
 
-            while(actRem.isMailboxPressured || pendingAdds.get() > 50){
+            while(actRem.isMailboxPressured || pendingAdds.get() > 150){
                 Actors.yield();
             };
             val obj = ("abc" + x +"test" + add).toByteArray();
 
             pendingAdds.incrementAndGet();
             val ret = Pair(x,actRem.put(obj,true)
+                    .timeoutIn(1000)
                     .onResult{ pendingAdds.decrementAndGet(); }
                     .onError{pendingAdds.decrementAndGet();}
                     .onTimeout{x ->pendingAdds.decrementAndGet();}
             )
 
-//            pendingAdds.incrementAndGet();
-//            actRem2.put(obj,true)
-//                    .onResult{ pendingAdds.decrementAndGet(); }
-//                    .onError{pendingAdds.decrementAndGet();}
-//                    .onTimeout{x ->pendingAdds.decrementAndGet();}
+            pendingAdds.incrementAndGet();
+            actRem2.put(obj,true)
+                    .timeoutIn(1000)
+                    .onResult{ pendingAdds.decrementAndGet(); }
+                    .onError{pendingAdds.decrementAndGet();}
+                    .onTimeout{x ->pendingAdds.decrementAndGet();}
 
 
-            ret;
-        });
+        };
 
         while(pendingAdds.get() > 0){
             Actors.yield();
@@ -196,9 +197,6 @@ class TestActor {
         println("=== inserted all to 1, t=" +(ts1-ts0));
         shouldFinished.set(true);
 
-        xx
-            .reversed().take(100).reversed()
-            .forEach{ (i,x) -> try {  val y = x. await(); println(""+ i +":" + y.toHexString()) }catch(ex:Exception){}}
 
         // wait till finish
         while(!actRem.isEmpty){
@@ -209,10 +207,10 @@ class TestActor {
         for(ixx in 1..10) {
             println("queryIds -------------")
             val ids = ArrayList(actRem.queryNewIds(from, 100_000).await().ids);
-            ids.forEachIndexed { i, x -> println("" + i + ":" + x.toHexString()) }
+            ids.forEach { (i, x) -> println("" + i + ":" + x.toHexString()) }
 
             println("get -----------")
-            val id2 = ArrayList(ids.map { x -> Pair(x, actRem.get(x)) });
+            val id2 = ArrayList(ids.map { x -> Pair(x, actRem.get(x.second)) });
 
             id2
                     .takeLast(100)
@@ -228,10 +226,10 @@ class TestActor {
         for(ixx in 1..10) {
             println("queryIds -------------")
             val ids = ArrayList(actRem2.queryNewIds(from, 100_000).await().ids);
-            ids.forEachIndexed { i, x -> println("" + i + ":" + x.toHexString()) }
+            ids.forEach { (i, x) -> println("" + i + ":" + x.toHexString()) }
 
             println("get -----------")
-            val id2 = ArrayList(ids.map { x -> Pair(x, actRem2.get(x)) });
+            val id2 = ArrayList(ids.map { x -> Pair(x, actRem2.get(x.second)) });
 
             id2
                     .takeLast(100)

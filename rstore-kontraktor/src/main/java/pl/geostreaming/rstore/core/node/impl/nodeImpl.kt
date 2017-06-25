@@ -172,7 +172,7 @@ class RsNodeActorImpl:RsNodeActor(){
 
     override fun queryNewIds(after: Long, cnt: Int): IPromise<IdList> {
         val r1 = ArrayList(
-                store.seq2id.tailMap(after,false).values.take(cnt)
+                store.seq2id.tailMap(after,false).entries.take(cnt).map { x -> Pair(x.key,x.value) }
         );
         return resolve( IdList(r1, after, store.seq.get() ));
     }

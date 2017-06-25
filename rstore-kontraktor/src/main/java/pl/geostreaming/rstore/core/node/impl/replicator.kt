@@ -1,16 +1,13 @@
 package pl.geostreaming.rstore.core.node.impl
 
 import org.mapdb.Atomic
-import org.mapdb.BTreeMap
 import org.mapdb.DB
 import org.nustaq.kontraktor.*
 import org.nustaq.kontraktor.annotations.Local
 import pl.geostreaming.kt.Open
 import pl.geostreaming.rstore.core.node.RsNodeActor
-import pl.geostreaming.rstore.core.util.toHexString
 import java.io.Serializable
 import java.nio.ByteBuffer
-import java.nio.LongBuffer
 import java.util.*
 import java.util.function.Consumer
 import kotlin.collections.HashMap
@@ -165,9 +162,20 @@ class Replicator (
         if( lastSeqIdRemote.get() < from) {
             lastSeqIdRemote.set(from);
         }
-        if(!queryingSeqIds )
-            doUpdateSeq(fullyReplicatedTo.get(), lastSeqIdRemote.get());
+        if(!queryingSeqIds ) {
+            // TODO get from first hole!
+            doUpdateSeq(calcLastNotMissing(), lastSeqIdRemote.get());
+        }
 
+    }
+
+    fun calcLastNotMissing():Long{
+        var seq = fullyReplicatedTo.get();
+        val last = lastSeqIdRemote.get();
+        while(seq <= last && toReplicate.containsKey(seq+1)){
+            seq++;
+        }
+        return seq;
     }
 
     fun doUpdateSeq(after:Long, to:Long){
@@ -177,23 +185,27 @@ class Replicator (
             .timeoutIn(500)
             .onResult {
                 x-> val cnt = x.ids.size;
-                println("do update received:" + (after+1) + " - " + (after + cnt));
-                x.ids.forEachIndexed{
-                    i,id -> append( (after+i+1), OID(id), checker.invoke(id))
-                }
+                lastSeqIdRemote.set(Math.max(lastSeqIdRemote.get(),x.lastSeqId))
+                if( cnt >0) {
+                    println("do update received:" + (x.ids.get(0).first) + " - " + (x.ids.get(x.ids.size - 1).first));
+                    x.ids.forEach {
+                        (seq, id) ->
+                        append((seq), OID(id), checker.invoke(id))
+                    }
+                    performCleaning();
 
-                var after2 = after+cnt;
+                    var after2 = calcLastNotMissing();
 
-                // TODO: opt: we can check present in toReplicate
-                after2 = toReplicate.keys.filter { k -> k < after2 }.first()
-                while(toReplicate.containsKey(after2)){
-                    after2++;
-                }
-
-                if(after2 < lastSeqIdRemote.get()){
-
-                    doUpdateSeq(after2, lastSeqIdRemote.get())
+                    if (after2 < lastSeqIdRemote.get()
+                            // don't query to much
+                            && after2 < fullyReplicatedTo.get() + 1000
+                            ) {
+                        doUpdateSeq(after2, lastSeqIdRemote.get())
+                    } else {
+                        queryingSeqIds = false;
+                    }
                 } else {
+                    println("do update received: empty");
                     queryingSeqIds = false;
                 }
             }
