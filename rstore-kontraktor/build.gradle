@@ -11,6 +11,7 @@ mainClassName = 'pl.geostreaming.rstore.kontraktor.MainKt'
 
 repositories {
     mavenCentral()
+    jcenter()
 }
 
 dependencies {
