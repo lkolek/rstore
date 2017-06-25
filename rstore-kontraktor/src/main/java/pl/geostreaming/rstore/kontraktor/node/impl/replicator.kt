@@ -5,6 +5,7 @@ import org.mapdb.DB
 import org.nustaq.kontraktor.*
 import org.nustaq.kontraktor.annotations.Local
 import pl.geostreaming.kt.Open
+import pl.geostreaming.rstore.core.model.OID
 import pl.geostreaming.rstore.kontraktor.node.RsNodeActor
 import java.io.Serializable
 import java.nio.ByteBuffer
@@ -16,23 +17,6 @@ import kotlin.collections.HashMap
  * Created by lkolek on 24.06.2017.
  */
 
-class OID(val hash:ByteArray): Serializable {
-    init {
-        if(hash.size !=32 )
-            throw RuntimeException("Not valid oid (hash)")
-    }
-    override fun hashCode(): Int {
-        return ByteBuffer.wrap(hash).asIntBuffer()[1]
-    }
-
-    override fun equals(other: Any?): Boolean {
-        if (this === other) return true
-        if (other?.javaClass != javaClass) return false
-        other as OID
-        if (!Arrays.equals(hash, other.hash)) return false
-        return true
-    }
-}
 
 /**
  * this class provides retriving behaviour (invoking get with proper handling)
@@ -40,10 +24,10 @@ class OID(val hash:ByteArray): Serializable {
 @Open
 class RetriverActor  : Actor<RetriverActor>(){
     private var TIMEOUT:Long = 2500;
-    private lateinit var myRepl: pl.geostreaming.rstore.kontraktor.node.RsNodeActor
+    private lateinit var myRepl: RsNodeActor
 
     @Local
-    fun init(myRepl: pl.geostreaming.rstore.kontraktor.node.RsNodeActor){
+    fun init(myRepl: RsNodeActor){
         this.myRepl = myRepl;
     }
 

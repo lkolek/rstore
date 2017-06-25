@@ -4,6 +4,7 @@ import java.io.Serializable
 import java.nio.ByteBuffer
 import java.nio.LongBuffer
 import java.security.MessageDigest
+import java.util.*
 
 /**
  * Created by lkolek on 21.06.2017.
@@ -14,6 +15,26 @@ import java.security.MessageDigest
  */
 typealias ObjId = ByteArray;
 
+/**
+ * ObjectId with proper hash / equals implemented.
+ */
+class OID(val hash:ObjId): Serializable {
+    init {
+        if(hash.size !=32 )
+            throw RuntimeException("Not valid oid (hash)")
+    }
+    override fun hashCode(): Int {
+        return ByteBuffer.wrap(hash).asIntBuffer()[1]
+    }
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other?.javaClass != javaClass) return false
+        other as OID
+        if (!Arrays.equals(hash, other.hash)) return false
+        return true
+    }
+}
 
 
 /**
