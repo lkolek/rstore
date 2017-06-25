@@ -1,10 +1,10 @@
 package pl.geostreaming.rstore.kontraktor.node.impl
 
+import pl.geostreaming.rstore.core.model.IdList
+import pl.geostreaming.rstore.core.model.NotThisNode
 import pl.geostreaming.rstore.core.model.RsCluster
 import pl.geostreaming.rstore.core.model.RsClusterDef
 import pl.geostreaming.rstore.kontraktor.node.HeartbitData
-import pl.geostreaming.rstore.kontraktor.node.IdList
-import pl.geostreaming.rstore.kontraktor.node.NotThisNode
 import pl.geostreaming.rstore.kontraktor.node.RsNodeActor
 
 /**
@@ -151,12 +151,12 @@ class RsNodeActorImpl: pl.geostreaming.rstore.kontraktor.node.RsNodeActor(){
             val replicas = cl.replicasForObjectId(oid);
 
             if(onlyThisNode) {
-                pr.reject(pl.geostreaming.rstore.kontraktor.node.NotThisNode("Not this node"));
+                pr.reject(NotThisNode("Not this node"));
             } else {
                 // TODO: call other replicas
                 val r0 = replicas.get(0);
                 // ... need actor
-                pr.reject(pl.geostreaming.rstore.kontraktor.node.NotThisNode("Not this node"));
+                pr.reject(NotThisNode("Not this node"));
             }
         }
         return pr;
@@ -171,7 +171,7 @@ class RsNodeActorImpl: pl.geostreaming.rstore.kontraktor.node.RsNodeActor(){
         val r1 = ArrayList(
                 store.seq2id.tailMap(after,false).entries.take(cnt).map { x -> Pair(x.key,x.value) }
         );
-        return resolve(pl.geostreaming.rstore.kontraktor.node.IdList(r1, after, store.seq.get()));
+        return resolve(IdList(r1, after, store.seq.get()));
     }
 
 //    /**

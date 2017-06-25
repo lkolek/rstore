@@ -138,3 +138,14 @@ class RsCluster(val cfg:RsClusterDef){
     fun objectId(obj:ByteArray) = obj.toObjectId()
     internal fun slotForId(id:ByteArray) = id.toSlot()
 }
+
+
+/// ---- others, for communiaction
+
+class NotThisNode(msg:String):Exception(msg), java.io.Serializable;
+
+data class IdList(
+        val ids:ArrayList<Pair<Long,ByteArray>>,
+        val afterSeqId:Long,
+        val lastSeqId:Long
+): java.io.Serializable;

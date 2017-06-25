@@ -18,6 +18,7 @@ dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$rootProject.ext.kotlin_version"
     compile 'org.jetbrains.kotlinx:kotlinx-coroutines-core:0.16'
     compile "org.jetbrains.kotlinx:kotlinx-coroutines-reactive:0.15"
+    compile "org.mapdb:mapdb:${rootProject.ext.mapdbVersion}"
 
     //    compile "de.ruedigermoeller:kontraktor:3.22",
 //            "de.ruedigermoeller:kontraktor-http:3.22"

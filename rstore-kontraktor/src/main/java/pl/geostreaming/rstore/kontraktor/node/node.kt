@@ -4,6 +4,7 @@ import org.nustaq.kontraktor.*
 import org.nustaq.kontraktor.annotations.Local
 import org.nustaq.serialization.annotations.Flat
 import pl.geostreaming.kt.Open
+import pl.geostreaming.rstore.core.model.IdList
 import pl.geostreaming.rstore.core.model.RsClusterDef
 import java.io.Serializable
 
@@ -11,13 +12,6 @@ import java.io.Serializable
  * Created by lkolek on 21.06.2017.
  */
 
-class NotThisNode(msg:String):Exception(msg), java.io.Serializable;
-
-data class IdList(
-        val ids:ArrayList<Pair<Long,ByteArray>>,
-        val afterSeqId:Long,
-        val lastSeqId:Long
-): java.io.Serializable;
 
 
 data class HeartbitData(val time:Long, val replId:Int, val lastSeq:Long, val totalBelow:Long): java.io.Serializable {
