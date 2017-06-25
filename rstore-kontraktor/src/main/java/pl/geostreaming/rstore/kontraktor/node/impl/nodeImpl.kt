@@ -95,7 +95,7 @@ class RsNodeActorImpl: pl.geostreaming.rstore.kontraktor.node.RsNodeActor(){
         }
 
 
-         val objs = db.hashMap("objs")
+        val objs = db.hashMap("objs")
                  .keySerializer(org.mapdb.Serializer.BYTE_ARRAY)
                  .valueSerializer(org.mapdb.serializer.SerializerCompressionWrapper(org.mapdb.Serializer.BYTE_ARRAY))
                  .valueInline()

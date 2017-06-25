@@ -10,6 +10,13 @@ import java.security.MessageDigest
  */
 
 /**
+ * Pure object id / hash
+ */
+typealias ObjId = ByteArray;
+
+
+
+/**
  * Simple configuration / structure of cluster.
  * Currently: static, can not be rebalanced.
  * Nodes can be changed (address), restarted from scratch
@@ -88,7 +95,7 @@ class RsCluster(val cfg:RsClusterDef){
         return md.digest(this)
     }
 
-    fun ByteArray.toSlot():Int{
+    fun ObjId.toSlot():Int{
         val ib = ByteBuffer.wrap(this).asIntBuffer();
         val a = ib.get().xor(ib.get()).xor(ib.get()).and(0x7fffffff)
         return (a % (cfg.replSlotSize ));
@@ -97,7 +104,7 @@ class RsCluster(val cfg:RsClusterDef){
     /**
      * Returns first replica, that should store given key
      */
-    fun firstReplIdxForObjectId(id:ByteArray):Int{
+    fun firstReplIdxForObjectId(id:ObjId):Int{
         if(id.size != 32){
             throw RuntimeException("THIS IS NOT PROPER HASH");
         }
@@ -108,7 +115,7 @@ class RsCluster(val cfg:RsClusterDef){
     /**
      * Gives array of replicas that should store given id
      */
-    fun replicasForObjectId(id:ByteArray):Array<RsNodeDef>{
+    fun replicasForObjectId(id:ObjId):Array<RsNodeDef>{
         val r1 = firstReplIdxForObjectId(id);
         return (0 until cfg.rf).map { x -> cfg.nodes[ (r1 + x) % cfg.nodes.size ] }.toTypedArray()
     }
@@ -116,7 +123,7 @@ class RsCluster(val cfg:RsClusterDef){
     /**
      * Tests if ob
      */
-    fun isReplicaForObjectId(id:ByteArray, replId:Int):Boolean{
+    fun isReplicaForObjectId(id:ObjId, replId:Int):Boolean{
         val r1 = firstReplIdxForObjectId(id);
         val idx1 = cfg.nodes.indexOfFirst { it.id == replId }
         val ns = cfg.nodes.size
@@ -136,7 +143,7 @@ class RsCluster(val cfg:RsClusterDef){
     }
 
     fun objectId(obj:ByteArray) = obj.toObjectId()
-    internal fun slotForId(id:ByteArray) = id.toSlot()
+    internal fun slotForId(id:ObjId) = id.toSlot()
 }
 
 
@@ -145,7 +152,7 @@ class RsCluster(val cfg:RsClusterDef){
 class NotThisNode(msg:String):Exception(msg), java.io.Serializable;
 
 data class IdList(
-        val ids:ArrayList<Pair<Long,ByteArray>>,
+        val ids:ArrayList<Pair<Long,ObjId>>,
         val afterSeqId:Long,
         val lastSeqId:Long
 ): java.io.Serializable;
