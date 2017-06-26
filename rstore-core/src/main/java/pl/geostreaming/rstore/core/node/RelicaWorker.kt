@@ -1,7 +1,8 @@
 package pl.geostreaming.rstore.kontraktor.node
 
-import kotlinx.coroutines.experimental.delay
-import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.channels.Channel
+import kotlinx.coroutines.experimental.channels.consumeEach
 import org.mapdb.Atomic
 import org.mapdb.BTreeMap
 import org.mapdb.DB
@@ -9,7 +10,7 @@ import org.mapdb.HTreeMap
 import pl.geostreaming.rstore.core.model.*
 import java.util.*
 import kotlin.coroutines.experimental.CoroutineContext
-import kotlinx.coroutines.experimental.run
+import kotlin.collections.ArrayList
 
 /**
  * Created by lkolek on 25.06.2017.
@@ -28,6 +29,7 @@ interface RelicaWorker{
     suspend fun put(obj:ByteArray):ObjId;
     suspend fun queryIds(afertSeqId:Long, cnt:Int):IdList;
     suspend fun get(oid:ObjId):ByteArray?;
+    suspend fun listenNewIds():Channel<Pair<Long, ObjId>>;
 
 }
 
@@ -42,12 +44,16 @@ class ReplicaWorkerMapdbImpl (
 
         val context:CoroutineContext
 ) :RelicaWorker {
+    private val myjob = Job()
     val objs: HTreeMap<ObjId, ByteArray>
     val seq:Atomic.Long
     val seq2id: BTreeMap<Long, ByteArray>
 
     val COMMIT_DELAY:Long = 1500;
     var toCommit = false;
+
+    private val newIds = Channel<Pair<Long, ObjId>>();
+    private val newIdsListeners = ArrayList<Channel<Pair<Long, ObjId>>>();
 
     init{
 
@@ -65,7 +71,31 @@ class ReplicaWorkerMapdbImpl (
                 .valueSerializer(org.mapdb.Serializer.BYTE_ARRAY)
                 .counterEnable()
                 .createOrOpen();
+
+
+        runBlocking(context){
+
+            launch(context + myjob){
+                newIds.consumeEach { id ->
+                    newIdsListeners.forEach { r ->
+                        if(!r.isClosedForSend) {
+                            async(context) {
+                                r.send(id)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
+
+    suspend override fun listenNewIds():Channel<Pair<Long, ObjId>> = run(context){
+        val ret = Channel<Pair<Long, ObjId>>();
+        newIdsListeners.add(ret);
+        ret;
+    }
+
+
 
     suspend fun delayedCommit()=run(context){
         if(!toCommit){
@@ -111,6 +141,12 @@ class ReplicaWorkerMapdbImpl (
         IdList(r1, afertSeqId, seq.get());
     }
 
+    suspend fun cancel() = run(context) {
+        newIdsListeners.forEach { x -> x.close() }
+        newIds.close();
+        myjob.cancel()
+    }
+
 }
 
 /**
@@ -121,13 +157,17 @@ class RetriverWorker(
         val myReplica:RelicaWorker,
         val context:CoroutineContext
 ) {
+    private val myjob = Job()
+
     protected var pending:Int = 0;
     protected val pendingOids = HashSet<OID>();
+
+
 
     suspend fun pending() = run(context) {pending}
     suspend fun has(oid: OID) = run(context) {pendingOids.contains(oid);}
 
-    suspend fun replicate(oid: OID, fromRepl: RelicaWorker)= run(context) {
+    suspend fun replicate(oid: OID, fromRepl: RelicaWorker)= run(context + myjob) {
         if (pendingOids.add(oid)) {
             pending++;
             try {
@@ -147,6 +187,10 @@ class RetriverWorker(
 
         }
     }
+
+    suspend fun cancel() = run(context) {
+        myjob.cancel()
+    }
 }
 
 class Replicator(
@@ -157,9 +201,10 @@ class Replicator(
         protected val db: DB,
         val context:CoroutineContext
 ) {
+    private val myjob = Job()
     protected val lastSeqIdRemote = db.atomicLong("lastSeqIdRemote.${remoteId}").createOrOpen();
     protected val fullyReplicatedTo = db.atomicLong("fulltyReplicatedTo.${remoteId}").createOrOpen();
-    protected val toRepl = TreeMap<Long,ReplOp>();
+    protected val toReplicate = TreeMap<Long,ReplOp>();
 
     protected abstract class ReplOp(val seqId:Long){ abstract fun completed():Boolean; };
     protected class NoOp( seqId:Long): ReplOp(seqId){ override fun completed() = true; }
@@ -170,6 +215,56 @@ class Replicator(
         var processing:Boolean = false
     }
 
+    init {
+        launch(context) { remote.listenNewIds().consumeEach {
+            (seqId, oid) -> append(seqId,OID(oid))
+            if(lastSeqIdRemote.get()< seqId){
+                lastSeqIdRemote.set(seqId)
+            }
+            // TODO: perform queryIds if needed?
+        } }
+    }
+
+    suspend fun calcLastNotMissing() = run(context){
+        var seq = fullyReplicatedTo.get();
+        val last = lastSeqIdRemote.get();
+        while(seq <= last && toReplicate.containsKey(seq+1)){
+            seq++;
+        }
+        seq;
+    }
+
+    protected suspend fun performCleaning() = run(context + myjob){
+        var frt = fullyReplicatedTo.get();
+        while(toReplicate.size > 0 && toReplicate.firstEntry().key <= frt){
+            toReplicate.remove(toReplicate.firstEntry().key)
+        }
+        while( toReplicate.size >0 &&  toReplicate.firstEntry().key <= frt+1 && toReplicate.firstEntry().value.completed()){
+            frt = toReplicate.firstEntry().key;
+            toReplicate.remove(toReplicate.firstEntry().key)
+        }
+        fullyReplicatedTo.set(frt);
+    }
+
+
+
+    protected suspend fun doReplicate() = run(context + myjob){
+        var qids = remote.queryIds(fullyReplicatedTo.get(),1000);
+        val frt = fullyReplicatedTo.get();
+        qids.ids
+                .filter { (seq,oid) -> seq > frt && !toReplicate.containsKey(seq) }
+                .forEach { (seq,oid) -> append(seq,OID(oid))};
+
+        if(lastSeqIdRemote.get() < qids.lastSeqId){
+            lastSeqIdRemote.set(qids.lastSeqId)
+        }
+
+        // TODO: check if next part is needed
+    }
+
+    protected suspend fun append(seq:Long,oid:OID){
+
+    }
 
     /**
      * How far replication is behind of src replica
