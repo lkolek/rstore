@@ -177,3 +177,10 @@ data class IdList(
         val afterSeqId:Long,
         val lastSeqId:Long
 ): java.io.Serializable;
+
+
+data class HeartbitData(val time:Long, val replId:Int, val lastSeq:Long, val totalBelow:Long): java.io.Serializable {
+    override fun toString(): String {
+        return "HeartbitData(time=$time, replId=$replId, lastSeq=$lastSeq, totalBelow=$totalBelow)"
+    }
+}

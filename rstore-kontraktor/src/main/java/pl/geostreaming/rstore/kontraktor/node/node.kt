@@ -4,6 +4,7 @@ import org.nustaq.kontraktor.*
 import org.nustaq.kontraktor.annotations.Local
 import org.nustaq.serialization.annotations.Flat
 import pl.geostreaming.kt.Open
+import pl.geostreaming.rstore.core.model.HeartbitData
 import pl.geostreaming.rstore.core.model.IdList
 import pl.geostreaming.rstore.core.model.RsClusterDef
 import java.io.Serializable
@@ -14,11 +15,6 @@ import java.io.Serializable
 
 
 
-data class HeartbitData(val time:Long, val replId:Int, val lastSeq:Long, val totalBelow:Long): java.io.Serializable {
-    override fun toString(): String {
-        return "HeartbitData(time=$time, replId=$replId, lastSeq=$lastSeq, totalBelow=$totalBelow)"
-    }
-}
 
 /**
  *

@@ -1,10 +1,6 @@
 package pl.geostreaming.rstore.kontraktor.node.impl
 
-import pl.geostreaming.rstore.core.model.IdList
-import pl.geostreaming.rstore.core.model.NotThisNode
-import pl.geostreaming.rstore.core.model.RsCluster
-import pl.geostreaming.rstore.core.model.RsClusterDef
-import pl.geostreaming.rstore.kontraktor.node.HeartbitData
+import pl.geostreaming.rstore.core.model.*
 import pl.geostreaming.rstore.kontraktor.node.RsNodeActor
 
 /**
@@ -56,7 +52,7 @@ class RsNodeActorImpl: pl.geostreaming.rstore.kontraktor.node.RsNodeActor(){
     }
 
     protected fun tick(){
-        val hb = pl.geostreaming.rstore.kontraktor.node.HeartbitData(System.currentTimeMillis(), this.id.toInt(),
+        val hb = HeartbitData(System.currentTimeMillis(), this.id.toInt(),
                 this.store.seq.get(),
                 remoteRepls.values.map { x -> x.replicator.below() }.sum()
         )
