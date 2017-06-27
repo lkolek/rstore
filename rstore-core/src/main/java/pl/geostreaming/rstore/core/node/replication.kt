@@ -5,18 +5,13 @@ package pl.geostreaming.rstore.core.node
  */
 
 import kotlinx.coroutines.experimental.*
-import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.sync.Mutex
 import kotlinx.coroutines.experimental.sync.withLock
-import org.mapdb.Atomic
-import org.mapdb.BTreeMap
 import org.mapdb.DB
-import org.mapdb.HTreeMap
 import pl.geostreaming.rstore.core.model.*
 import java.util.*
 import kotlin.coroutines.experimental.CoroutineContext
-import kotlin.collections.ArrayList
 
 
 /**
@@ -27,7 +22,7 @@ import kotlin.collections.ArrayList
  * All methods are invoked in provided context.
  */
 class RetriverWorker(
-        val myReplica:RelicaWorker,
+        val myReplica: RelicaOpLog,
         val context:CoroutineContext
 ) {
     private val myjob = Job()
@@ -46,7 +41,7 @@ class RetriverWorker(
      * Returns after finishing operation (both positive and negative).
      * In case there is one like this pending, it waits for replication
      */
-    suspend fun replicate(oid: OID, fromRepl: RelicaWorker)  = run(context + myjob) {
+    suspend fun replicate(oid: OID, fromRepl: RelicaOpLog)  = run(context + myjob) {
         if (!pendingOids.containsKey(oid)) {
             val mutex = Mutex()
             pendingOids.put(oid, mutex)
@@ -92,7 +87,7 @@ class RetriverWorker(
 
 
 /**
- * Replicator: replicates from remote to out own [RelicaWorker]
+ * Replicator: replicates from remote to out own [RelicaOpLog]
  *
  * Theere are two source of ids to replicate if needed:
  * - channel of (seqId, objId) - after object was added to remote replica,
@@ -119,9 +114,9 @@ class RetriverWorker(
  *
  */
 class Replicator(
-        val myReplica:RelicaWorker,
+        val myReplica: RelicaOpLog,
         val replId:Int,
-        val remote:RelicaWorker,
+        val remote: RelicaOpLog,
         val remoteId:Int,
         protected val db: DB,
         val context:CoroutineContext

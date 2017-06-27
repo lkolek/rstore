@@ -28,6 +28,7 @@ dependencies {
 //    compile     "org.mapdb:mapdb:${rootProject.ext.mapdbVersion}"
     compile "com.fasterxml.jackson.module:jackson-module-kotlin:2.8.7"
 
+    cCompile group: 'org.slf4j', name: 'logback-classic.jar', version: '1.7.21'
 
     testCompile group: 'junit', name: 'junit', version: '4.12'
 }

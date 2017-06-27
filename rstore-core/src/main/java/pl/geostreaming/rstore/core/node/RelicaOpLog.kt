@@ -17,6 +17,7 @@ import kotlin.collections.ArrayList
  */
 
 
+
 /**
  * core Replica interface for inner operations
  *
@@ -28,23 +29,17 @@ import kotlin.collections.ArrayList
  *
  * Does not (directly) do any replication / communication stuff.
  */
-interface RelicaWorker{
+interface RelicaOpLog {
     /**
      * creates new heartbit channel with [HeartbitData] every 1s
      */
     suspend fun heartbit():Channel<HeartbitData>;
 
+
     /**
      * create new channel with new (seqId,ObjId) pair for every object added to this replica
      */
     suspend fun listenNewIds():Channel<Pair<Long, ObjId>>;
-
-    /**
-     * puts object to replica - internal behaviour, without propagation
-     *
-     * @return object id (hash) of added object
-     */
-    suspend fun put(obj:ByteArray):ObjId;
 
     /**
      * Query ids (hashes) after given seqId
@@ -54,6 +49,14 @@ interface RelicaWorker{
     suspend fun queryIds(afertSeqId:Long, cnt:Int):IdList;
 
     /**
+     * puts object to replica - internal behaviour, without propagation
+     *
+     * @return object id (hash) of added object
+     */
+    suspend fun put(obj:ByteArray):ObjId;
+
+
+    /**
      * Get object by id (hash)
      *
      *
@@ -61,6 +64,9 @@ interface RelicaWorker{
      */
     suspend fun get(oid:ObjId):ByteArray?;
 
+    /**
+     * Checking if replica has specific object
+     */
     suspend fun has(oid:ObjId):Boolean;
 
 }

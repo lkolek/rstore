@@ -4,12 +4,8 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.consumeEach
 import mu.KLogging
-import org.mapdb.Atomic
-import org.mapdb.BTreeMap
 import org.mapdb.DB
-import org.mapdb.HTreeMap
 import pl.geostreaming.rstore.core.model.*
-import java.util.*
 import kotlin.coroutines.experimental.CoroutineContext
 import kotlin.collections.ArrayList
 
@@ -26,13 +22,13 @@ import kotlin.collections.ArrayList
  * It executes its suspend functions in provided [context] - it should be single thread to provide safety (for now at least).
  *
  */
-class ReplicaWorkerMapdbImpl (
+class ReplicaMapdbImpl (
         val replId:Int,
         val cl:RsCluster,
         val db:DB,
         val context:CoroutineContext = newSingleThreadContext("Relica ${replId}")
 
-) :RelicaWorker {
+) : RelicaOpLog {
     private val myjob = Job()
     val objs = db.hashMap("objs")
         .keySerializer(org.mapdb.Serializer.BYTE_ARRAY)
@@ -48,44 +44,39 @@ class ReplicaWorkerMapdbImpl (
     val seq = db.atomicLong("seq").createOrOpen();
 
     val COMMIT_DELAY:Long = 1500;
-    var toCommit = false;
+    private var toCommit = false;
 
     private val newIds = Channel<Pair<Long, ObjId>>();
     private val newIdsListeners = ArrayList<Channel<Pair<Long, ObjId>>>();
     private val heartbitListeners = ArrayList<Channel<HeartbitData>>();
 
-    companion object: KLogging()
-
-    init{
-
-        logger.info { "Initialized storage r${replId}, seqId=${seq.get()}" }
+    private companion object: KLogging()
 
 
-        runBlocking(context){
-
-            launch(context + myjob){
-                newIds.consumeEach { id ->
-                    newIdsListeners.forEach { r ->
-                        if(!r.isClosedForSend) {
-                            async(context) {
-                                r.send(id)
-                            }
-                        }
-                    }
+    private val jobNewIds = launch(context + myjob){
+        newIds.consumeEach { id ->
+            newIdsListeners.removeIf { r -> r.isClosedForSend  }
+            newIdsListeners.forEach { r -> async(context) {
+                try {
+                    /* ? offer */
+                    r.send(id)
+                } catch( ex:Exception ){
+                    logger.warn { "newId sending exception:${ex.message}" }
                 }
-            }
-            launch(context + myjob){
-                while(true) {
-                    val hb = HeartbitData(System.currentTimeMillis(), replId,
-                            seq.get(),
-                            0 //remoteRepls.values.map { x -> x.replicator.below() }.sum()
-                    )
-                    logger.debug { "Heartbit r${replId}: ${hb}" }
+            }}
+        }
+    }
 
-                    heartbitListeners.forEach { x -> async(CommonPool) { x.send(hb) } }
-                    delay(1000)
-                }
-            }
+    private val jobHeartbit = launch(context + myjob){
+        while(true) {
+            val hb = HeartbitData(System.currentTimeMillis(), replId,
+                    seq.get(),
+                    0 //remoteRepls.values.map { x -> x.replicator.below() }.sum()
+            )
+            logger.debug { "Heartbit r${replId}: ${hb}" }
+
+            heartbitListeners.forEach { x -> async(CommonPool) { x.send(hb) } }
+            delay(1000)
         }
     }
 
@@ -127,13 +118,15 @@ class ReplicaWorkerMapdbImpl (
         if(!cl.isReplicaForObjectId(oid, replId)){
             throw NotThisNode("Put not for this node")
         }
-        val seqId = seq.incrementAndGet();
-        objs.put(oid,obj);
-        seq2id.put(seqId,oid);
+        if(! has(oid)) {
+            val seqId = seq.incrementAndGet();
+            objs.put(oid, obj);
+            seq2id.put(seqId, oid);
 
-        // TODO: should we wait for ending ?
-        delayedCommit();
-
+            delayedCommit();
+            newIds.send( Pair(seqId,oid));
+            // TODO: should we wait for ending ?
+        }
         oid;
     }
 
@@ -147,7 +140,10 @@ class ReplicaWorkerMapdbImpl (
         IdList(r1, afertSeqId, seq.get());
     }
 
-    suspend fun cancel() = run(context) {
+    suspend fun cancelAll() = run(context) {
+        jobNewIds.cancel()
+        jobHeartbit.cancel()
+
         newIdsListeners.forEach { x -> x.close() }
         newIds.close();
         myjob.cancel()
@@ -155,4 +151,10 @@ class ReplicaWorkerMapdbImpl (
 
     suspend override fun has(oid: ObjId) = run(context) {objs.containsKey(oid)}
 
+    fun close(){
+        runBlocking(context) {
+            cancelAll();
+            db.close();
+        }
+    }
 }
