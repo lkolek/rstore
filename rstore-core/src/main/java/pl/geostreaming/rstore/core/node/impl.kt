@@ -120,8 +120,10 @@ class ReplicaMapdbImpl (
      * Query for ids after given seqId, acording to local ordering.
      */
     suspend override fun queryIds(afertSeqId: Long, cnt: Int): IdList = run(context) {
-        val r1 = ArrayList(
-                seq2id.tailMap(afertSeqId,false).entries.take(cnt).map { x -> Pair(x.key,x.value) }
+        val r1 = ArrayList(seq2id
+                .tailMap(afertSeqId,false)
+                .entries.take(cnt)
+                .map { x -> Pair(x.key,x.value) }
         );
         IdList(r1, afertSeqId, seq.get());
     }

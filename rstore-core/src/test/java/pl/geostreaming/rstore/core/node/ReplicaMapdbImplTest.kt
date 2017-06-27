@@ -132,7 +132,8 @@ class ReplicaMapdbImplTest :ReplTestBase() {
         val r1 = makeReplInmem(1, cl);
         var lastSeq = 0L;
         runBlocking(r1.context) {
-            val oid = r1.put("1 lksjlh klfh lakj lkdsdlaks kalsk ".toByteArray());
+            val obj1 = "1 lksjlh klfh lakj lkdsdlaks kalsk ".toByteArray()
+            val oid = r1.put(obj1);
             delay(100);
             val ret = r1.queryIds(0,10)
             Assert.assertTrue("should have new Id",oid.arrEquals( ret.ids[0].second))
@@ -148,6 +149,8 @@ class ReplicaMapdbImplTest :ReplTestBase() {
 
 
             Assert.assertTrue("no has oid",r1.has(oid));
+            val obj1retr = r1.get(oid)!!;
+            Assert.assertTrue("obj1 = get(oid)",obj1.arrEquals(obj1retr))
         }
 
         r1.close();
