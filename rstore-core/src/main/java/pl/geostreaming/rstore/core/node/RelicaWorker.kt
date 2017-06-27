@@ -18,6 +18,9 @@ import kotlin.collections.ArrayList
 
 
 /**
+ * core Replica interface for inner operations
+ *
+ *
  * Replica worker iterface, implementing non-blocking.
  * (?) Should be called in the same thread - how to make it happen and sure?.
  *
@@ -26,10 +29,38 @@ import kotlin.collections.ArrayList
  * Does not (directly) do any replication / communication stuff.
  */
 interface RelicaWorker{
-    suspend fun put(obj:ByteArray):ObjId;
-    suspend fun queryIds(afertSeqId:Long, cnt:Int):IdList;
-    suspend fun get(oid:ObjId):ByteArray?;
-    suspend fun listenNewIds():Channel<Pair<Long, ObjId>>;
+    /**
+     * creates new heartbit channel with [HeartbitData] every 1s
+     */
     suspend fun heartbit():Channel<HeartbitData>;
+
+    /**
+     * create new channel with new (seqId,ObjId) pair for every object added to this replica
+     */
+    suspend fun listenNewIds():Channel<Pair<Long, ObjId>>;
+
+    /**
+     * puts object to replica - internal behaviour, without propagation
+     *
+     * @return object id (hash) of added object
+     */
+    suspend fun put(obj:ByteArray):ObjId;
+
+    /**
+     * Query ids (hashes) after given seqId
+     *
+     * @return ids after specified one
+     */
+    suspend fun queryIds(afertSeqId:Long, cnt:Int):IdList;
+
+    /**
+     * Get object by id (hash)
+     *
+     *
+     * @return binary data or null if not present
+     */
+    suspend fun get(oid:ObjId):ByteArray?;
+
+    suspend fun has(oid:ObjId):Boolean;
 
 }

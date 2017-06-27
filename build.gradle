@@ -10,11 +10,14 @@ buildscript {
         mapdbVersion = '3.0.4'
         guavaVersion = '19.0'  //'19.0'
 //        geotoolsVersion =  '17.0' //'16.3'
+        dokka_version = '0.9.15'
     }
 
     dependencies{
         classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
         classpath "org.jetbrains.kotlin:kotlin-allopen:$kotlin_version"
+        classpath "org.jetbrains.dokka:dokka-gradle-plugin:${dokka_version}"
+
 
 //        classpath( 'org.springframework.boot:spring-boot-gradle-plugin:' + rootProject.ext.springBootVersion )
 //        classpath 'org.xtext:xtext-gradle-plugin:1.0.17'

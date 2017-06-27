@@ -3,6 +3,7 @@ version '0.1-SNAPSHOT'
 
 apply plugin: 'java'
 apply plugin: 'kotlin'
+apply plugin: 'org.jetbrains.dokka'
 //apply plugin: 'application'
 //mainClassName = 'pl.geostreaming.rstore.core.TmpMainKt'
 
@@ -19,6 +20,8 @@ dependencies {
     compile 'org.jetbrains.kotlinx:kotlinx-coroutines-core:0.16'
     compile "org.jetbrains.kotlinx:kotlinx-coroutines-reactive:0.15"
     compile "org.mapdb:mapdb:${rootProject.ext.mapdbVersion}"
+
+    compile 'io.github.microutils:kotlin-logging:1.4.5'
 
     //    compile "de.ruedigermoeller:kontraktor:3.22",
 //            "de.ruedigermoeller:kontraktor-http:3.22"

@@ -3,6 +3,7 @@ package pl.geostreaming.rstore.core.node
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.consumeEach
+import mu.KLogging
 import org.mapdb.Atomic
 import org.mapdb.BTreeMap
 import org.mapdb.DB
@@ -19,19 +20,32 @@ import kotlin.collections.ArrayList
 
 /**
  * Replica worker implementation using Mapdb.
- * @see ReplicaWorker
+ *
+ * Uses mapdb [DB] as data storage.
+ *
+ * It executes its suspend functions in provided [context] - it should be single thread to provide safety (for now at least).
+ *
  */
 class ReplicaWorkerMapdbImpl (
         val replId:Int,
         val cl:RsCluster,
         val db:DB,
+        val context:CoroutineContext = newSingleThreadContext("Relica ${replId}")
 
-        val context:CoroutineContext
 ) :RelicaWorker {
     private val myjob = Job()
-    val objs: HTreeMap<ObjId, ByteArray>
-    val seq:Atomic.Long
-    val seq2id: BTreeMap<Long, ByteArray>
+    val objs = db.hashMap("objs")
+        .keySerializer(org.mapdb.Serializer.BYTE_ARRAY)
+        .valueSerializer(org.mapdb.serializer.SerializerCompressionWrapper(org.mapdb.Serializer.BYTE_ARRAY))
+        .valueInline()
+        .counterEnable()
+        .createOrOpen();
+    val seq2id = db.treeMap("seq2id")
+            .keySerializer(org.mapdb.Serializer.LONG_DELTA)
+            .valueSerializer(org.mapdb.Serializer.BYTE_ARRAY)
+            .counterEnable()
+            .createOrOpen();
+    val seq = db.atomicLong("seq").createOrOpen();
 
     val COMMIT_DELAY:Long = 1500;
     var toCommit = false;
@@ -40,22 +54,11 @@ class ReplicaWorkerMapdbImpl (
     private val newIdsListeners = ArrayList<Channel<Pair<Long, ObjId>>>();
     private val heartbitListeners = ArrayList<Channel<HeartbitData>>();
 
+    companion object: KLogging()
+
     init{
 
-        objs = db.hashMap("objs")
-                .keySerializer(org.mapdb.Serializer.BYTE_ARRAY)
-                .valueSerializer(org.mapdb.serializer.SerializerCompressionWrapper(org.mapdb.Serializer.BYTE_ARRAY))
-                .valueInline()
-                .counterEnable()
-                .createOrOpen();
-
-        seq = db.atomicLong("seq").createOrOpen();
-
-        seq2id = db.treeMap("seq2id")
-                .keySerializer(org.mapdb.Serializer.LONG_DELTA)
-                .valueSerializer(org.mapdb.Serializer.BYTE_ARRAY)
-                .counterEnable()
-                .createOrOpen();
+        logger.info { "Initialized storage r${replId}, seqId=${seq.get()}" }
 
 
         runBlocking(context){
@@ -77,6 +80,8 @@ class ReplicaWorkerMapdbImpl (
                             seq.get(),
                             0 //remoteRepls.values.map { x -> x.replicator.below() }.sum()
                     )
+                    logger.debug { "Heartbit r${replId}: ${hb}" }
+
                     heartbitListeners.forEach { x -> async(CommonPool) { x.send(hb) } }
                     delay(1000)
                 }
@@ -147,5 +152,7 @@ class ReplicaWorkerMapdbImpl (
         newIds.close();
         myjob.cancel()
     }
+
+    suspend override fun has(oid: ObjId) = run(context) {objs.containsKey(oid)}
 
 }

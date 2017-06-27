@@ -23,9 +23,7 @@ class OID(val hash:ObjId): Serializable {
         if(hash.size !=32 )
             throw RuntimeException("Not valid oid (hash)")
     }
-    override fun hashCode(): Int {
-        return ByteBuffer.wrap(hash).asIntBuffer()[1]
-    }
+    override fun hashCode() = ByteBuffer.wrap(hash).asIntBuffer()[1]
 
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
@@ -36,6 +34,7 @@ class OID(val hash:ObjId): Serializable {
     }
 }
 
+data class RsNodeDef(val id: Int, val addr: String):Serializable
 
 /**
  * Simple configuration / structure of cluster.
@@ -62,7 +61,7 @@ data class RsClusterDef private constructor(
         }
 
         if(nodes.size < rf)
-            throw RuntimeException("Replication factor must be at least the size of cluster!");
+            throw RuntimeException("Replication factor SHOULD be at most the size of cluster!");
     }
 
     private constructor(builder:Builder) : this(
@@ -103,7 +102,6 @@ data class RsClusterDef private constructor(
     }
 
 }
-data class RsNodeDef(val id: Int, val addr: String):Serializable
 
 
 /**
