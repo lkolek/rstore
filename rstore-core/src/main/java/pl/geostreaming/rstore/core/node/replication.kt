@@ -8,10 +8,39 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.sync.Mutex
 import kotlinx.coroutines.experimental.sync.withLock
+import mu.KLogging
 import org.mapdb.DB
 import pl.geostreaming.rstore.core.model.*
 import java.util.*
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.experimental.CoroutineContext
+
+
+/**
+ * Provides the same value to every receiver waiting for them.
+ *
+ * Receivers calling [get], [getOrNull] waits for value
+ * When calling [getWhenAvaibleOrNull] gets value or null immediatly
+ */
+class MultiReceiver<T>{
+    private val mux=Mutex(true)
+    private var t:T? = null;
+
+    fun set(v:T){
+        if(t != null){
+            throw RuntimeException("value set called second time, not accepted!")
+        }
+        t = v;
+        mux.unlock();
+    }
+
+    suspend fun get():T = mux.withLock{ t ?: throw RuntimeException("value not avaible, recevie cancelled") }
+    suspend fun getOrNull():T? = mux.withLock{ t }
+
+
+    // this implementation COULD BE WRONG, returning false because other call gets mutex for getting value!
+    fun getIfAvaibleOrNull():T?  = if(mux.tryLock()){ mux.unlock();  t; } else null;
+}
 
 
 /**
@@ -26,14 +55,10 @@ class RetriverWorker(
         val context:CoroutineContext
 ) {
     private val myjob = Job()
-
-    protected var pending:Int = 0;
-    protected val pendingOids = HashMap<OID,Mutex>();
+    protected val pendingOids = HashMap<OID,MultiReceiver<Boolean>>();
 
 
-
-
-    suspend fun pending() = run(context) {pending}
+    suspend fun pending() = run(context) {pendingOids.size}
     suspend fun has(oid: OID) = run(context) {pendingOids.contains(oid);}
 
     /**
@@ -41,40 +66,31 @@ class RetriverWorker(
      * Returns after finishing operation (both positive and negative).
      * In case there is one like this pending, it waits for replication
      */
-    suspend fun replicate(oid: OID, fromRepl: RelicaOpLog)  = run(context + myjob) {
+    suspend fun replicate(oid: OID, fromRepl: RelicaOpLog):Boolean  = run(context + myjob) {
         if (!pendingOids.containsKey(oid)) {
-            val mutex = Mutex()
-            pendingOids.put(oid, mutex)
+            val murec = MultiReceiver<Boolean>()
+            pendingOids.put(oid, murec)
 
-            pending++;
-            async(context) {
-                mutex.withLock {
-                    try {
-                        val obj = fromRepl.get(oid.hash);
-                        if (obj != null) {
-                            myReplica.put(obj);
-                        } else {
-                            // TODO: proper Exception
-                            throw RuntimeException("Object id=${oid.hash} not present in remote");
-                        }
-                    } finally {
-                        pending--;
-                        pendingOids.remove(oid);
+//            async(context) {
+                try {
+                    val obj = fromRepl.get(oid.hash);
+                    if (obj != null) {
+                        myReplica.put(obj);
+                        murec.set(true);
+                    } else {
+                        // TODO: proper Exception
+//                        throw RuntimeException("Object id=${oid.hash} not present in remote");
+                        murec.set(false);
                     }
+                } finally {
+                    // TODO handling exception, set(false)
+                    pendingOids.remove(oid);
                 }
-            }
-
-            // wait for replcation to finish!
-            mutex.lock();
-            mutex.unlock();
-            // TODO: how to get result? In case of fail, exception will be thrown
+//            }
+            murec.get()
         } else {
             // already replicating: how to wait for finish?
-            val mutex = pendingOids.get(oid)!!
-            mutex.lock();
-            mutex.unlock();
-            // TODO: how to get result? Do we need it?
-
+            pendingOids.get(oid)!!.get()
         }
     }
 
@@ -115,19 +131,30 @@ class RetriverWorker(
  */
 class Replicator(
         val myReplica: RelicaOpLog,
-        val replId:Int,
         val remote: RelicaOpLog,
-        val remoteId:Int,
         protected val db: DB,
         val context:CoroutineContext
 ) {
+    val remoteId = remote.replId;
+    private companion object: KLogging()
+
+    /* storage */
+    private val lastSeqIdRemoteStorage = db.atomicLong("lastSeqIdRemote.${remoteId}").createOrOpen();
+    private val fullyReplicatedToStorage = db.atomicLong("fulltyReplicatedTo.${remoteId}").createOrOpen();
 
 
     private val myjob = Job()
     /** last known seqId from remote replica */
-    protected val lastSeqIdRemote = db.atomicLong("lastSeqIdRemote.${remoteId}").createOrOpen();
+
+
+    var lastSeqIdRemote = lastSeqIdRemoteStorage.get()
+        protected set(value) {if(field < value){ field = value; lastSeqIdRemoteStorage.set(field);}}
+
+
     /** last remote seqId that has been fully / continuously replicated */
-    protected val fullyReplicatedTo = db.atomicLong("fulltyReplicatedTo.${remoteId}").createOrOpen();
+    var fullyReplicatedTo = fullyReplicatedToStorage.get()
+        protected set(value) { if(value > field && value <= lastSeqIdRemote) {field = value; fullyReplicatedToStorage.set(field)}}
+
     /** queue of records to replcate, may contain holes.
      *
      * Also contains NOOP records for objects already in own replica - to fill holes
@@ -146,7 +173,7 @@ class Replicator(
     }
 
     init {
-        launch(context) {  processHeartbit() }
+//        launch(context) {  processHeartbit() }
         /* new ids */
         launch(context) {  processNewOids() }
         launch(context) {  while(true) { queryLackingIds(); delay(100); }}
@@ -156,21 +183,20 @@ class Replicator(
 
 
     private suspend fun processNewOids() =  remote.listenNewIds().consumeEach{ (seqId, oid) ->
-        if(lastSeqIdRemote.get()< seqId){
-            lastSeqIdRemote.set(seqId)
-        }
+        logger.debug { "R:${myReplica.replId} new oids from ${remoteId}: ${seqId}" }
+        lastSeqIdRemote = seqId // max tested inside
         append(seqId,OID(oid))
     }
-    private suspend fun processHeartbit() = run(context){
-        remote.heartbit().consumeEach{ hbd ->
-            if(lastSeqIdRemote.get()< hbd.lastSeq ){
-                lastSeqIdRemote.set(hbd.lastSeq )
-            }
-        }
-    }
+
+    // this should be changed somehow to ReplicaManager
+//    private suspend fun processHeartbit() = run(context){
+//        remote.heartbit().consumeEach{ hbd ->
+//            lastSeqIdRemote = hbd.lastSeq // max tested inside
+//        }
+//    }
 
     private suspend fun append(seq:Long,oid:OID){
-        if(seq > fullyReplicatedTo.get() && !toReplicate.containsKey(seq)){
+        if(seq > fullyReplicatedTo && !toReplicate.containsKey(seq)){
             toReplicate.put(seq, if(myReplica.has(oid.hash)) NoOp(seq)
                 else ToReplicate(seq, oid)
             )
@@ -184,11 +210,9 @@ class Replicator(
                 queryingIds = true;
 
                 var from = calcLastNotMissing();
-                while (from < lastSeqIdRemote.get() && from - fullyReplicatedTo.get() < 1000) {
+                while (from < lastSeqIdRemote && from - fullyReplicatedTo < 1000) {
                     val ids = remote.queryIds(from, 500);
-                    if (lastSeqIdRemote.get() < ids.lastSeqId) {
-                        lastSeqIdRemote.set(ids.lastSeqId)
-                    }
+                    lastSeqIdRemote= ids.lastSeqId  // max inside
                     ids.ids.forEach { (seq, oid) -> append(seq, OID(oid)) }
                     from = calcLastNotMissing();
                 }
@@ -200,33 +224,31 @@ class Replicator(
 
 
     suspend fun calcLastNotMissing() = run(context){
-        var seq = fullyReplicatedTo.get();
-        val last = lastSeqIdRemote.get();
-        while(seq <= last && toReplicate.containsKey(seq+1)){
+        var seq = fullyReplicatedTo
+        while(seq <= lastSeqIdRemote && toReplicate.containsKey(seq+1)){
             seq++;
         }
         seq;
     }
 
     protected suspend fun performCleaning() = run(context + myjob){
-        var frt = fullyReplicatedTo.get();
+        var frt = fullyReplicatedTo
+
         while(toReplicate.size > 0 && toReplicate.firstEntry().key <= frt){
             toReplicate.remove(toReplicate.firstEntry().key)
         }
+
         while( toReplicate.size >0 &&  toReplicate.firstEntry().key <= frt+1 && toReplicate.firstEntry().value.completed()){
             frt = toReplicate.firstEntry().key;
             toReplicate.remove(toReplicate.firstEntry().key)
         }
-        fullyReplicatedTo.set(frt);
+        fullyReplicatedTo =frt;
     }
-
-
-
 
 
     /**
      * How far replication is behind of src replica
      */
-    suspend fun behind() = run(context){this.lastSeqIdRemote.get() - fullyReplicatedTo.get()}
+    suspend fun behind() = run(context){this.lastSeqIdRemote - fullyReplicatedTo}
 
 }

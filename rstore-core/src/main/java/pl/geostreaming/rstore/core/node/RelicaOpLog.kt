@@ -30,11 +30,8 @@ import kotlin.collections.ArrayList
  * Does not (directly) do any replication / communication stuff.
  */
 interface RelicaOpLog {
-    /**
-     * creates new heartbit channel with [HeartbitData] every 1s
-     */
-    suspend fun heartbit():Channel<HeartbitData>;
 
+    val replId:Int
 
     /**
      * create new channel with new (seqId,ObjId) pair for every object added to this replica
@@ -68,5 +65,17 @@ interface RelicaOpLog {
      * Checking if replica has specific object
      */
     suspend fun has(oid:ObjId):Boolean;
+
+}
+
+interface ReplicaManager {
+    /**
+     * creates new heartbit channel with [HeartbitData] every 1s
+     */
+    suspend fun heartbit():Channel<HeartbitData>;
+
+    fun close();
+
+    fun introduceFrom(remote:RelicaOpLog )
 
 }

@@ -2,7 +2,10 @@ package pl.geostreaming.rstore.core.node
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
+import kotlinx.coroutines.experimental.channels.actor
 import kotlinx.coroutines.experimental.channels.consumeEach
+import kotlinx.coroutines.experimental.sync.Mutex
+import kotlinx.coroutines.experimental.sync.withLock
 import mu.KLogging
 import org.mapdb.DB
 import pl.geostreaming.rstore.core.model.*
@@ -23,12 +26,12 @@ import kotlin.collections.ArrayList
  *
  */
 class ReplicaMapdbImpl (
-        val replId:Int,
+        override val replId:Int,
         val cl:RsCluster,
         val db:DB,
         val context:CoroutineContext = newSingleThreadContext("Relica ${replId}")
 
-) : RelicaOpLog {
+) : RelicaOpLog, ReplicaManager {
     private val myjob = Job()
     val objs = db.hashMap("objs")
         .keySerializer(org.mapdb.Serializer.BYTE_ARRAY)
@@ -53,7 +56,7 @@ class ReplicaMapdbImpl (
     private companion object: KLogging()
 
 
-    private val jobNewIds = launch(context + myjob){
+    private val jobNewIds = launch(context + myjob+ CoroutineName("newIds")){
         newIds.consumeEach { id ->
             newIdsListeners.removeIf { r -> r.isClosedForSend  }
             newIdsListeners.forEach { r -> async(context) {
@@ -67,18 +70,6 @@ class ReplicaMapdbImpl (
         }
     }
 
-    private val jobHeartbit = launch(context + myjob){
-        while(true) {
-            val hb = HeartbitData(System.currentTimeMillis(), replId,
-                    seq.get(),
-                    0 //remoteRepls.values.map { x -> x.replicator.below() }.sum()
-            )
-            logger.debug { "Heartbit r${replId}: ${hb}" }
-
-            heartbitListeners.forEach { x -> async(CommonPool) { x.send(hb) } }
-            delay(1000)
-        }
-    }
 
 
     suspend override fun listenNewIds():Channel<Pair<Long, ObjId>> = run(context){
@@ -87,21 +78,16 @@ class ReplicaMapdbImpl (
         ret;
     }
 
-    suspend override fun heartbit():Channel<HeartbitData> = run(context + myjob){
-        val ret = Channel<HeartbitData>();
-        heartbitListeners.add(ret);
-        ret;
+    protected val delayedCommitActor = actor<Boolean>(context + CoroutineName("delayedCommit")){
+        channel.consumeEach{
+            delay(COMMIT_DELAY);
+            db.commit();
+            logger.debug("Delayed commit, lastSeq=${seq.get()}")
+        }
     }
 
-
-    suspend fun delayedCommit()=run(context){
-        if(!toCommit){
-            launch( context ) {
-                toCommit = true;
-                delay(COMMIT_DELAY);
-                db.commit();
-            }
-        }
+    suspend fun delayedCommit(){
+        delayedCommitActor.offer(true);
     }
 
     /**
@@ -124,7 +110,7 @@ class ReplicaMapdbImpl (
             seq2id.put(seqId, oid);
 
             delayedCommit();
-            newIds.send( Pair(seqId,oid));
+            newIds.offer( Pair(seqId,oid));
             // TODO: should we wait for ending ?
         }
         oid;
@@ -151,10 +137,43 @@ class ReplicaMapdbImpl (
 
     suspend override fun has(oid: ObjId) = run(context) {objs.containsKey(oid)}
 
-    fun close(){
+
+
+    /* ReplicaManager  implementation ==========================================================  */
+
+    private val remoteReplications = HashMap<Int,Pair<RelicaOpLog, Replicator>>();
+
+    private val jobHeartbit = launch(context + myjob + CoroutineName("heartbit")){
+
+        while(true) {
+            val hb = HeartbitData(System.currentTimeMillis(), replId,
+                    seq.get(),0 //remoteRepls.values.map { x -> x.replicator.below() }.sum()
+            )
+            logger.debug { "Heartbit r${replId}: ${hb}" }
+
+            heartbitListeners.forEach { x -> async(CommonPool) { x.send(hb) } }
+            delay(1000)
+        }
+    }
+
+    suspend override fun heartbit():Channel<HeartbitData> = run(context + myjob){
+        val ret = Channel<HeartbitData>();
+        heartbitListeners.add(ret);
+        ret;
+    }
+
+    override fun close(){
         runBlocking(context) {
             cancelAll();
             db.close();
         }
     }
+
+    override fun introduceFrom(remote: RelicaOpLog) {
+        if(!remoteReplications.containsKey(remote.replId)){
+            remoteReplications.put(remote.replId, Pair(remote, Replicator(this,remote,db,context) ))
+        }
+        // TODO: reintroduce
+    }
+
 }

@@ -17,14 +17,15 @@ import java.util.concurrent.atomic.AtomicInteger
 /**
  * Created by lkolek on 27.06.2017.
  */
-class ReplicaMapdbImplTest {
 
+
+open class ReplTestBase {
     companion object {
         val location = "../data"
 
         @BeforeClass @JvmStatic
         fun beforeClass(){
-            System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "TRACE");
+//            System.setProperty(org.slf4j.impl.SimpleLogger.DEFAULT_LOG_LEVEL_KEY, "TRACE");
             with(File(location)){ Assume.assumeTrue("Data directory exists: ${location}", exists() && isDirectory) }
         }
 
@@ -51,6 +52,12 @@ class ReplicaMapdbImplTest {
                     .fileMmapEnable()
                     .closeOnJvmShutdown()
                     .make());
+
+    fun ObjId.arrEquals( other:ObjId) = Arrays.equals(this,other)
+
+}
+
+class ReplicaMapdbImplTest :ReplTestBase() {
 
 
 
@@ -117,7 +124,6 @@ class ReplicaMapdbImplTest {
         r1.close();
     }
 
-    fun ObjId.arrEquals( other:ObjId) = Arrays.equals(this,other)
 
     @Test
     fun testQueryIds(){
