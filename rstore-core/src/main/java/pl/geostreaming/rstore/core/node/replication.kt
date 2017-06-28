@@ -5,14 +5,17 @@ package pl.geostreaming.rstore.core.node
  */
 
 import kotlinx.coroutines.experimental.*
+import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.sync.Mutex
 import kotlinx.coroutines.experimental.sync.withLock
 import mu.KLogging
 import org.mapdb.DB
 import pl.geostreaming.rstore.core.model.*
+import pl.geostreaming.rstore.core.util.toHexString
 import java.util.*
 import java.util.concurrent.atomic.AtomicReference
+import kotlin.collections.ArrayList
 import kotlin.coroutines.experimental.CoroutineContext
 
 
@@ -132,6 +135,8 @@ class RetriverWorker(
 class Replicator(
         val myReplica: RelicaOpLog,
         val remote: RelicaOpLog,
+        val retriver: RetriverWorker,
+        val concurrentGets:Int,
         protected val db: DB,
         val context:CoroutineContext
 ) {
@@ -179,7 +184,72 @@ class Replicator(
         launch(context) {  while(true) { queryLackingIds(); delay(100); }}
 
         /* work on ids */
+        launch(context) {  processReplication() }
     }
+
+    private suspend fun processReplication(){
+
+        val toReplChannnel = Channel<Pair<Long,ToReplicate>>();
+        val replFinished   = Channel<Pair<Long,ToReplicate>>();
+
+        logger.debug { "init replication from r${remote.replId}" }
+
+        // concurrent replicators
+        (1..concurrentGets).forEach {
+            launch(context){
+                while(!toReplChannnel.isClosedForReceive){
+                    val (seq, rd) = toReplChannnel.receive();
+                    try {
+                        logger.debug { "getting seq ${seq} from r${remote.replId}" }
+                        if (retriver.replicate(rd.objId, remote)) {
+                            rd.processing = false;
+                            rd.replicated = true;
+                        } else {
+                            rd.processing = false;
+                            rd.attemts++;
+                        }
+
+                    }catch (ex:Exception){
+                        rd.processing = false;
+                        rd.attemts++;
+                        logger.warn("exception during getting obj ${rd.objId.hash.toHexString()}:  ${ex.message}")
+                    }
+                    replFinished.send(Pair(seq,rd))
+                }
+            }
+        }
+
+        launch(context){
+            while(!replFinished.isClosedForReceive){
+                val (seq, rd) = replFinished.receive();
+                logger.debug { "stored seq ${seq} from r${remote.replId}" }
+                performCleaning();
+            }
+        }
+
+        // adding to replicators
+        while(true){
+            performCleaning();
+            val part1 = ArrayList( toReplicate
+                    .entries
+                    .filter { (seg, rd) -> rd is ToReplicate && !rd.replicated && !rd.processing && !retriver.has(rd.objId) }
+                    .take(1)
+            );
+            if(!part1.isEmpty()){
+                part1.forEach { (seq,rd) ->
+                    logger.debug { "performing replication: ${seq} from r${remote.replId}" }
+                    rd as ToReplicate;
+                    rd.processing = true;
+                    toReplChannnel.send(Pair(seq,rd));
+                }
+            } else {
+                delay(100)
+            }
+
+        }
+
+    }
+
 
 
     private suspend fun processNewOids() =  remote.listenNewIds().consumeEach{ (seqId, oid) ->

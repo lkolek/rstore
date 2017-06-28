@@ -142,7 +142,7 @@ class ReplicaMapdbImpl (
 
 
     /* ReplicaManager  implementation ==========================================================  */
-
+    private val retriver = RetriverWorker(this, context);
     private val remoteReplications = HashMap<Int,Pair<RelicaOpLog, Replicator>>();
 
     private val jobHeartbit = launch(context + myjob + CoroutineName("heartbit")){
@@ -173,7 +173,7 @@ class ReplicaMapdbImpl (
 
     override fun introduceFrom(remote: RelicaOpLog) {
         if(!remoteReplications.containsKey(remote.replId)){
-            remoteReplications.put(remote.replId, Pair(remote, Replicator(this,remote,db,context) ))
+            remoteReplications.put(remote.replId, Pair(remote, Replicator(this,remote,retriver,5,db,context) ))
         }
         // TODO: reintroduce
     }

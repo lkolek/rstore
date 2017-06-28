@@ -30,6 +30,7 @@ class ReplicationTest:ReplTestBase() {
 
 
         r2.introduceFrom(r1);
+        r1.introduceFrom(r2);
 
         var lastSeq = 0L;
         runBlocking {
@@ -51,17 +52,28 @@ class ReplicationTest:ReplTestBase() {
             // wait for registration
             delay(100);
             // this should fit before next hartbit
-            val oid = r1.put("lksjlh klfh lakj lkdsdlaks kalsk ".toByteArray());
-            delay(500);
-            Assert.assertTrue("should have new Id", cnt.get() == 1)
 
-            Assert.assertTrue("same obj insertion", Arrays.equals(oid, r1.put("lksjlh klfh lakj lkdsdlaks kalsk ".toByteArray())));
-            delay(500);
-            Assert.assertTrue("should NOT have new Id", cnt.get() == 1)
 
-            val oid2 = r1.put("aksjhdlkahsd klfh lakj lkdsdlaks kalsk ".toByteArray());
-            delay(500);
-            Assert.assertTrue("should have new Id", cnt.get() == 2)
+            val last = (1..1000).map { i ->
+                r1.put(("" + i + ":lksjlh klfh lakj lkdsdlaks kalsk ").toByteArray());
+            }.last();
+
+
+            var cntr = 0;
+            while(! r2.has(last) && cntr++ < 100) {
+                delay(200);
+            }
+            Assert.assertTrue("last id in second replica:", r2.has(last))
+
+            val last2 = (1..1000).map { i ->
+                r2.put(("" + i + ":second to first ").toByteArray());
+            }.last();
+
+            cntr = 0;
+            while(!r1.has(last2)&& cntr++ < 100) {
+                delay(200);
+            }
+            Assert.assertTrue("last2 id in first replica:", r1.has(last2))
 
 
             delay(3000);
