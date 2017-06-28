@@ -5,7 +5,8 @@ currently in alpha stage
 
 uses kotlin and kotlin coroutines
 
-all can change in the future ;)
+**all can change in the future ;)**
+
 ------
 
 rstore provides simple to install, embedable, replicated store functionality.
