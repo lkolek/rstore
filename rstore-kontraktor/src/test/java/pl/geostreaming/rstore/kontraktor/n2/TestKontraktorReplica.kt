@@ -69,13 +69,13 @@ class TestKontraktorReplica : ReplTestBase(){
         val pending = AtomicInteger();
 
         (0..100_000).forEach { x ->
-            if(pending.get() > 50) {
+            if(pending.get() > 100) {
                 while (pending.get() > 10) {
                     Thread.sleep(100)
                 }
             }
             pending.getAndIncrement();
-            val xx = actRem.put(randByteArray(1_000), true)
+            val xx = actRem.put(randByteArray(10_000), true)
                     .onResult { pending.getAndDecrement() }
                     .onError { pending.getAndDecrement() }
                     .onTimeout { -> pending.getAndDecrement() }

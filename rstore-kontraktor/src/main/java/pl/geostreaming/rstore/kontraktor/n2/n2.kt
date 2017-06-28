@@ -154,14 +154,15 @@ class RemoteRepl(override val replId:Int,private val act:RsNodeActor): RelicaOpL
 
     private suspend fun <T> toSuspend( l: ()->IPromise<T>) = suspendCoroutine<T> { x ->
         l.invoke()
+                .timeoutIn(1000)
                 .onError { e ->
                     println("ERROR in toSuspend: ${e}")
                     val ex = e as Throwable ?: RuntimeException(e?.toString() ?: "no def")
                     x.resumeWithException(ex)
                 }
                 .onResult{ r -> x.resume(r)}
-                .onTimeout (Consumer<Void> {  x.resumeWithException(RuntimeException("timeout")) });
-
-
+                .onTimeout{ ->
+                    println("TIMEOUT in toSuspend")
+                    x.resumeWithException(RuntimeException("timeout")) };
     }
 }

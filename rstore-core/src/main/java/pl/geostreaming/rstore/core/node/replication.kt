@@ -59,6 +59,7 @@ class RetriverWorker(
         val myReplica: RelicaOpLog,
         val context:CoroutineContext
 ) {
+    private companion object: KLogging()
     private val myjob = Job()
     protected val pendingOids = HashMap<OID,MultiReceiver<Boolean>>();
 
@@ -87,6 +88,9 @@ class RetriverWorker(
 //                        throw RuntimeException("Object id=${oid.hash} not present in remote");
                         murec.set(false);
                     }
+                } catch (ex:Exception){
+                    murec.set(false);
+                    logger.warn("EXCEPTION when replicating from r${fromRepl.replId}");
                 } finally {
                     // TODO handling exception, set(false)
                     pendingOids.remove(oid);
