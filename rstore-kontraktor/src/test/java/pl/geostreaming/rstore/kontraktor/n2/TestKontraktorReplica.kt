@@ -72,9 +72,11 @@ class TestKontraktorReplica : ReplTestBase(){
             while(pending.get() > 100){
                 Thread.sleep(100)
             }
+            pending.getAndIncrement();
             val xx = actRem2.put(randByteArray(1_000), true)
-                    .onResult { pending.getAndIncrement() }
-                    .onError { pending.getAndIncrement() }
+                    .onResult { pending.getAndDecrement() }
+                    .onError { pending.getAndDecrement() }
+                    .onTimeout { -> pending.getAndDecrement() }
         }
         while(pending.get() > 0){
             Thread.sleep(100)
