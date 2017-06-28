@@ -7,13 +7,16 @@ import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.newSingleThreadContext
 import kotlinx.coroutines.experimental.runBlocking
 import org.nustaq.kontraktor.*
+import org.nustaq.kontraktor.annotations.AsCallback
 import org.nustaq.kontraktor.annotations.Local
+import pl.geostreaming.kt.Open
 import pl.geostreaming.rstore.core.model.HeartbitData
 import pl.geostreaming.rstore.core.model.IdList
 import pl.geostreaming.rstore.core.model.ObjId
 import pl.geostreaming.rstore.core.model.RsClusterDef
 import pl.geostreaming.rstore.core.node.RelicaOpLog
 import pl.geostreaming.rstore.core.node.ReplicaMapdbImpl
+import java.util.function.Consumer
 import kotlin.coroutines.experimental.Continuation
 import kotlin.coroutines.experimental.suspendCoroutine
 
@@ -25,10 +28,10 @@ import kotlin.coroutines.experimental.suspendCoroutine
  * NOTES:
  *  - currently cluster cfg can't change, but in the future we don't have to kill all nodes to apply SOME changes
  */
-@pl.geostreaming.kt.Open
+@Open
 class RsNodeActor : Actor<RsNodeActor>() {
 
-    fun introduce(id:Int, replicaActor: RsNodeActor, own:Long ): IPromise<Long>  =noimpl()
+    open fun introduce(id:Int, replicaActor: RsNodeActor): IPromise<Boolean>  =noimpl()
 
 
     fun cfg(): IPromise<RsClusterDef> =noimpl()
@@ -46,20 +49,43 @@ class RsNodeActor : Actor<RsNodeActor>() {
     fun listenIds(cb: Callback<Pair<Long, ByteArray>>){}
     fun listenHeartbit(cb: Callback<HeartbitData>){}
 
-    private fun <T> noimpl(): IPromise<T> = reject(RuntimeException("UNIMPLEMENTED"))
+    private fun <T> noimpl(): IPromise<T> = reject(RuntimeException("UNIMPLEMENTED, proxy:${isProxy}, obj=${this}"))
 }
 
+@Open
 class RsNodeActorImpl : RsNodeActor(){
-    private final lateinit var repl:ReplicaMapdbImpl;
+    private final var replRef:ReplicaMapdbImpl? = null;
+    private val repl get() = replRef?:throw kotlin.RuntimeException("Not initialized, replica ${this}")
 
     private companion object {
         private val context = newSingleThreadContext("Kontr2Kt");
     }
 
     @Local
-    fun init( repl: ReplicaMapdbImpl) {
-        this.repl = repl;
+    fun init( r: ReplicaMapdbImpl) {
+        if(!isProxy) {
+            replRef = r;
+            println("repl ${this} initialized to ${r}")
+        } else {
+            println("!!! init called on proxy!")
+        }
     }
+
+    override fun introduce(id: Int, replicaActor: RsNodeActor)= toPromise {
+        println("called RsNodeActorImpl ${this}, proxy=${isProxy}")
+        val remote = RemoteRepl(id,replicaActor);
+        repl.introduceFrom(remote)
+        true;
+    }
+
+//    override fun introduce(id: Int, replicaActor: RsNodeActor): IPromise<Boolean>{
+//        return toPromise {
+//            println("called RsNodeActorImpl ${this}, proxy=${isProxy}")
+//            val remote = RemoteRepl(id,replicaActor);
+//            repl.introduceFrom(remote)
+//            true;
+//        }
+//    }
 
     override fun cfg() = Actors.resolve(repl.cl.cfg);
 
@@ -72,16 +98,19 @@ class RsNodeActorImpl : RsNodeActor(){
     override fun has(oid: ByteArray)= toPromise{ repl.has(oid) }
 
 
-    private fun <T> toPromise( x : suspend () -> T )= Promise<T>().let { ret ->
-            async(context) {
-                try {
-                    ret.resolve(x.invoke())
-                } catch(ex: Exception) {
-                    ret.reject(ex)
-                }
+    private fun <T> toPromise( x : suspend () -> T ):IPromise<T>{
+        val ret = Promise<T>();
+        async(context) {
+            try {
+                val v = x.invoke()
+                ret.resolve(v)
+            } catch(ex: Exception) {
+                println("EXCEPTION: ${ex.message}")
+                ret.reject(ex)
             }
-            ret;
-        };
+        }
+        return ret;
+    }
 
     override fun listenIds(cb: Callback<Pair<Long, ByteArray>>) {
         async(context) {
@@ -91,6 +120,11 @@ class RsNodeActorImpl : RsNodeActor(){
                 cb.reject("Exception")
             }
         }
+    }
+
+    override fun stop() {
+        repl.close();
+        super.stop()
     }
 }
 
@@ -121,13 +155,15 @@ class RemoteRepl(override val replId:Int,private val act:RsNodeActor): RelicaOpL
     suspend override fun has(oid:ObjId) = toSuspend{  act.has(oid)}
 
     private suspend fun <T> toSuspend( l: ()->IPromise<T>) = suspendCoroutine<T> { x ->
-        l.invoke().then { result, error ->
-            if(Actors.isResult(error)){
-                x.resume(result)
-            } else {
-                val ex = error as Throwable ?: RuntimeException(error)
-                x.resumeWithException(ex)
-            }
-        }
+        l.invoke()
+                .onError { e ->
+                    println("ERROR in toSuspend: ${e}")
+                    val ex = e as Throwable ?: RuntimeException(e?.toString() ?: "no def")
+                    x.resumeWithException(ex)
+                }
+                .onResult{ r -> x.resume(r)}
+                .onTimeout (Consumer<Void> {  x.resumeWithException(RuntimeException("timeout")) });
+
+
     }
 }
