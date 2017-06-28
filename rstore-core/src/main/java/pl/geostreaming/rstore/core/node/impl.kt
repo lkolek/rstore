@@ -174,7 +174,7 @@ class ReplicaMapdbImpl (
     override fun introduceFrom(remote: RelicaOpLog) {
         if(!remoteReplications.containsKey(remote.replId)){
             remoteReplications.put(remote.replId, Pair(remote,
-                    Replicator(this,remote,retriver,25,db,context) ))
+                    Replicator(this,remote,retriver,200,db,context) ))
         }
         // TODO: reintroduce
     }

@@ -68,22 +68,33 @@ class TestKontraktorReplica : ReplTestBase(){
 
         val pending = AtomicInteger();
 
-        (0..30_000).forEach { x ->
-            while(pending.get() > 100){
-                Thread.sleep(100)
+        (0..100_000).forEach { x ->
+            if(pending.get() > 50) {
+                while (pending.get() > 10) {
+                    Thread.sleep(100)
+                }
             }
             pending.getAndIncrement();
-            val xx = actRem2.put(randByteArray(1_000), true)
+            val xx = actRem.put(randByteArray(1_000), true)
                     .onResult { pending.getAndDecrement() }
                     .onError { pending.getAndDecrement() }
                     .onTimeout { -> pending.getAndDecrement() }
+
+//            pending.getAndIncrement();
+//            val xx2 = actRem2.put(randByteArray(1_000), true)
+//                    .onResult { pending.getAndDecrement() }
+//                    .onError { pending.getAndDecrement() }
+//                    .onTimeout { -> pending.getAndDecrement() }
         }
         while(pending.get() > 0){
             Thread.sleep(100)
         }
 
+        println("------- SEND FINISHED-----")
 
-        Thread.sleep(5000)
+
+
+        Thread.sleep(10000)
 
         r1Act.stop();
         r2Act.stop();
