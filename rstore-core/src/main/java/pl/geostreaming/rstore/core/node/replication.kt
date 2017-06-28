@@ -200,7 +200,10 @@ class Replicator(
                 while(!toReplChannnel.isClosedForReceive){
                     val (seq, rd) = toReplChannnel.receive();
                     try {
-                        logger.debug { "getting seq ${seq} from r${remote.replId}" }
+                        if(seq% 1000L == 0L)
+                            logger.debug { "getting seq ${seq} from r${remote.replId}" }
+                        else
+                            logger.trace { "getting seq ${seq} from r${remote.replId}" }
                         if (retriver.replicate(rd.objId, remote)) {
                             rd.processing = false;
                             rd.replicated = true;
@@ -222,7 +225,7 @@ class Replicator(
         launch(context){
             while(!replFinished.isClosedForReceive){
                 val (seq, rd) = replFinished.receive();
-                logger.debug { "stored seq ${seq} from r${remote.replId}" }
+                logger.trace { "stored seq ${seq} from r${remote.replId}" }
                 performCleaning();
             }
         }
@@ -237,7 +240,7 @@ class Replicator(
             );
             if(!part1.isEmpty()){
                 part1.forEach { (seq,rd) ->
-                    logger.debug { "performing replication: ${seq} from r${remote.replId}" }
+                    logger.trace { "performing replication: ${seq} from r${remote.replId}" }
                     rd as ToReplicate;
                     rd.processing = true;
                     toReplChannnel.send(Pair(seq,rd));
@@ -253,7 +256,10 @@ class Replicator(
 
 
     private suspend fun processNewOids() =  remote.listenNewIds().consumeEach{ (seqId, oid) ->
-        logger.debug { "R:${myReplica.replId} new oids from ${remoteId}: ${seqId}" }
+        if(seqId % 1000L == 0L)
+            logger.debug { "R:${myReplica.replId} new oids from ${remoteId}: ${seqId}" }
+        else
+            logger.trace { "R:${myReplica.replId} new oids from ${remoteId}: ${seqId}" }
         lastSeqIdRemote = seqId // max tested inside
         append(seqId,OID(oid))
     }
@@ -281,6 +287,7 @@ class Replicator(
 
                 var from = calcLastNotMissing();
                 while (from < lastSeqIdRemote && from - fullyReplicatedTo < 1000) {
+                    logger.debug { "r${myReplica.replId}: querying lacking ids: ${from}" }
                     val ids = remote.queryIds(from, 500);
                     lastSeqIdRemote= ids.lastSeqId  // max inside
                     ids.ids.forEach { (seq, oid) -> append(seq, OID(oid)) }
