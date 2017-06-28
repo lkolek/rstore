@@ -65,8 +65,8 @@ interface RelicaOpLog {
      * Checking if replica has specific object
      */
     suspend fun has(oid:ObjId):Boolean;
-
 }
+
 
 interface ReplicaManager {
     /**

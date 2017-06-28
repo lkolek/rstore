@@ -124,7 +124,7 @@ class ReplicationTest:ReplTestBase() {
 
             val last = (1..100_000).map { i ->
                 if(i % 1000 == 0){
-                    delay(50)
+                    delay(150)
                 }
 //                val obj = ("" + i + ":lksjlh klfh lakj lkdsdlaks kalsk ").toByteArray()
                 val obj = randByteArray(RECORD_SIZE);
@@ -140,7 +140,7 @@ class ReplicationTest:ReplTestBase() {
 
             val last2 = (1..100_000).map { i ->
                 if(i % 1000 == 0){
-                    delay(50)
+                    delay(150)
                 }
                 val obj = randByteArray(RECORD_SIZE);
                 r2.put(obj);
