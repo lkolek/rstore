@@ -49,7 +49,7 @@ class ReplicaMapdbImpl (
     val COMMIT_DELAY:Long = 1500;
     private var toCommit = false;
 
-    private val newIds = Channel<Pair<Long, ObjId>>();
+    private val newIds = Channel<Pair<Long, ObjId>>(100);
     private val newIdsListeners = ArrayList<Channel<Pair<Long, ObjId>>>();
     private val heartbitListeners = ArrayList<Channel<HeartbitData>>();
 
@@ -59,21 +59,21 @@ class ReplicaMapdbImpl (
     private val jobNewIds = launch(context + myjob+ CoroutineName("newIds")){
         newIds.consumeEach { id ->
             newIdsListeners.removeIf { r -> r.isClosedForSend  }
-            newIdsListeners.forEach { r -> async(context) {
+            newIdsListeners.forEach { r ->
                 try {
                     /* ? offer */
-                    r.send(id)
+                    r.offer(id)
                 } catch( ex:Exception ){
                     logger.warn { "newId sending exception:${ex.message}" }
                 }
-            }}
+            }
         }
     }
 
 
 
     suspend override fun listenNewIds():Channel<Pair<Long, ObjId>> = run(context){
-        val ret = Channel<Pair<Long, ObjId>>();
+        val ret = Channel<Pair<Long, ObjId>>(100);
         newIdsListeners.add(ret);
         ret;
     }
@@ -149,7 +149,7 @@ class ReplicaMapdbImpl (
 
         while(true) {
             val hb = HeartbitData(System.currentTimeMillis(), replId,
-                    seq.get(),0 //remoteRepls.values.map { x -> x.replicator.below() }.sum()
+                    seq.get(),remoteReplications.values.map { x-> x.second.behind() }.sum()
             )
             logger.debug { "Heartbit r${replId}: ${hb}" }
 
@@ -173,7 +173,8 @@ class ReplicaMapdbImpl (
 
     override fun introduceFrom(remote: RelicaOpLog) {
         if(!remoteReplications.containsKey(remote.replId)){
-            remoteReplications.put(remote.replId, Pair(remote, Replicator(this,remote,retriver,5,db,context) ))
+            remoteReplications.put(remote.replId, Pair(remote,
+                    Replicator(this,remote,retriver,5,db,context) ))
         }
         // TODO: reintroduce
     }

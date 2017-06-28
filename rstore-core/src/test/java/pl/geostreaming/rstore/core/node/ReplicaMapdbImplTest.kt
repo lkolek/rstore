@@ -11,6 +11,7 @@ import pl.geostreaming.rstore.core.model.ObjId
 import pl.geostreaming.rstore.core.model.RsCluster
 import pl.geostreaming.rstore.core.model.RsClusterDef
 import java.io.File
+import java.nio.ByteBuffer
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -46,12 +47,25 @@ open class ReplTestBase {
         File(location).listFiles().filter { it.name.startsWith("db") } .forEach { f -> f.delete() }
     }
 
-    fun makeReplInmem(id:Int, cl:RsCluster)= ReplicaMapdbImpl(id,cl,DBMaker.memoryDirectDB().make());
+    fun randByteArray(size:Int):ByteArray{
+        val ba = ByteArray(size);
+        val bb = ByteBuffer.wrap(ba)
+        (0 until size/4).forEach { i-> bb.putInt(i, (Math.random() * Int.MAX_VALUE).toInt() ) }
+        return ba;
+    }
+
+    fun makeReplInmem(id:Int, cl:RsCluster, noMt:Boolean = false)= ReplicaMapdbImpl(id,cl,
+            DBMaker.memoryDirectDB().apply {
+                if(noMt){
+                    concurrencyDisable()
+                }
+            }.make());
     fun makeReplFile(id:Int, cl:RsCluster)= ReplicaMapdbImpl(id,cl,
-            DBMaker.fileDB(location+"/db${id}.db")
-                    .fileMmapEnable()
-                    .closeOnJvmShutdown()
-                    .make());
+            DBMaker.fileDB(location+"/db${id}.db").apply {
+                fileMmapEnable()
+                closeOnJvmShutdown()
+
+            }.make());
 
     fun ObjId.arrEquals( other:ObjId) = Arrays.equals(this,other)
 

@@ -6,7 +6,9 @@ package pl.geostreaming.rstore.core.node
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
+import kotlinx.coroutines.experimental.channels.ConflatedChannel
 import kotlinx.coroutines.experimental.channels.consumeEach
+import kotlinx.coroutines.experimental.selects.select
 import kotlinx.coroutines.experimental.sync.Mutex
 import kotlinx.coroutines.experimental.sync.withLock
 import mu.KLogging
@@ -190,53 +192,46 @@ class Replicator(
     private suspend fun processReplication(){
 
         val toReplChannnel = Channel<Pair<Long,ToReplicate>>();
-        val replFinished   = Channel<Pair<Long,ToReplicate>>();
+        val replFinished   = ConflatedChannel<Boolean>();
 
         logger.debug { "init replication from r${remote.replId}" }
 
         // concurrent replicators
         (1..concurrentGets).forEach {
             launch(context){
-                while(!toReplChannnel.isClosedForReceive){
-                    val (seq, rd) = toReplChannnel.receive();
-                    try {
-                        if(seq% 1000L == 0L)
-                            logger.debug { "getting seq ${seq} from r${remote.replId}" }
-                        else
-                            logger.trace { "getting seq ${seq} from r${remote.replId}" }
-                        if (retriver.replicate(rd.objId, remote)) {
-                            rd.processing = false;
-                            rd.replicated = true;
-                        } else {
-                            rd.processing = false;
-                            rd.attemts++;
+                try {
+                    while (true) {
+                        select<Unit> {
+                            toReplChannnel.onReceive { (seq, rd) ->
+                                if (seq % 1000L == 0L)
+                                    logger.debug { "getting seq ${seq} from r${remote.replId}" }
+                                rd.replicated = retriver.replicate(rd.objId, remote);
+                                rd.attemts++;
+                                rd.processing = false;
+                                replFinished.send(true)
+                            }
                         }
-
-                    }catch (ex:Exception){
-                        rd.processing = false;
-                        rd.attemts++;
-                        logger.warn("exception during getting obj ${rd.objId.hash.toHexString()}:  ${ex.message}")
                     }
-                    replFinished.send(Pair(seq,rd))
+                } catch(ex:Exception){
+                    logger.warn{ "closing toReplChannnel handler due to exception: ${ex.message}" }
                 }
             }
         }
 
         launch(context){
             while(!replFinished.isClosedForReceive){
-                val (seq, rd) = replFinished.receive();
-                logger.trace { "stored seq ${seq} from r${remote.replId}" }
+                replFinished.receive();
+                delay(100)
                 performCleaning();
             }
         }
 
         // adding to replicators
         while(true){
-            performCleaning();
             val part1 = ArrayList( toReplicate
                     .entries
                     .filter { (seg, rd) -> rd is ToReplicate && !rd.replicated && !rd.processing && !retriver.has(rd.objId) }
-                    .take(1)
+                    .take(5)
             );
             if(!part1.isEmpty()){
                 part1.forEach { (seq,rd) ->
@@ -246,7 +241,7 @@ class Replicator(
                     toReplChannnel.send(Pair(seq,rd));
                 }
             } else {
-                delay(100)
+                delay(10)
             }
 
         }
@@ -287,9 +282,9 @@ class Replicator(
 
                 var from = calcLastNotMissing();
                 while (from < lastSeqIdRemote && from - fullyReplicatedTo < 1000) {
-                    logger.debug { "r${myReplica.replId}: querying lacking ids: ${from}" }
-                    val ids = remote.queryIds(from, 500);
-                    lastSeqIdRemote= ids.lastSeqId  // max inside
+                    logger.debug { "r${myReplica.replId}: querying lacking ids: ${from}, frt=${fullyReplicatedTo}, last=${lastSeqIdRemote},  lacking=[${dumpLacking(from,10)}]" }
+                    val ids = remote.queryIds(from, 100);
+                    lastSeqIdRemote = ids.lastSeqId  // max inside
                     ids.ids.forEach { (seq, oid) -> append(seq, OID(oid)) }
                     from = calcLastNotMissing();
                 }
@@ -299,10 +294,14 @@ class Replicator(
         }
     }
 
+    fun dumpLacking(after:Long, cnt:Int) =  ((after+1) .. (after + cnt))
+                .filter { x -> !toReplicate.containsKey(x) }
+                .joinToString();
+
 
     suspend fun calcLastNotMissing() = run(context){
         var seq = fullyReplicatedTo
-        while(seq <= lastSeqIdRemote && toReplicate.containsKey(seq+1)){
+        while(seq < lastSeqIdRemote && toReplicate.containsKey(seq+1)){
             seq++;
         }
         seq;
@@ -311,14 +310,24 @@ class Replicator(
     protected suspend fun performCleaning() = run(context + myjob){
         var frt = fullyReplicatedTo
 
-        while(toReplicate.size > 0 && toReplicate.firstEntry().key <= frt){
-            toReplicate.remove(toReplicate.firstEntry().key)
-        }
+        var conti = true;
+        do {
+            val fk = toReplicate.firstEntry()
+            if(fk != null){
+                if(fk.key <= frt ){
+                    logger.warn { "STRANGE: toReplicate below frt (${frt}) present: ${fk.key} -> ${fk.value}" }
+                    toReplicate.remove(fk.key);
+                } else if( fk.key == frt+1 && fk.value.completed() ){
+                    toReplicate.remove(fk.key);
+                    frt = fk.key;
+                } else {
+                    conti = false;
+                }
+            } else {
+                conti = false;
+            }
+        } while (conti)
 
-        while( toReplicate.size >0 &&  toReplicate.firstEntry().key <= frt+1 && toReplicate.firstEntry().value.completed()){
-            frt = toReplicate.firstEntry().key;
-            toReplicate.remove(toReplicate.firstEntry().key)
-        }
         fullyReplicatedTo =frt;
     }
 
