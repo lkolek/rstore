@@ -1,6 +1,8 @@
 package pl.geostreaming.rstore.kontraktor.n2
 
 import kotlinx.coroutines.experimental.delay
+import org.junit.Assume
+import org.junit.BeforeClass
 import org.junit.Test
 import org.nustaq.kontraktor.Actor
 import org.nustaq.kontraktor.Actors
@@ -9,6 +11,7 @@ import org.nustaq.kontraktor.remoting.tcp.TCPNIOPublisher
 import pl.geostreaming.rstore.core.model.RsCluster
 import pl.geostreaming.rstore.core.model.RsClusterDef
 import pl.geostreaming.rstore.core.node.ReplTestBase
+import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -16,7 +19,6 @@ import java.util.concurrent.atomic.AtomicInteger
  */
 
 class TestKontraktorReplica : ReplTestBase(){
-
 
 
     @Test

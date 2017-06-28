@@ -4,6 +4,7 @@ import kotlinx.coroutines.experimental.CommonPool
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.consumeEach
+import kotlinx.coroutines.experimental.future.future
 import kotlinx.coroutines.experimental.newSingleThreadContext
 import kotlinx.coroutines.experimental.runBlocking
 import org.nustaq.kontraktor.*
@@ -100,23 +101,20 @@ class RsNodeActorImpl : RsNodeActor(){
 
     private fun <T> toPromise( x : suspend () -> T ):IPromise<T>{
         val ret = Promise<T>();
-        async(context) {
-            try {
-                val v = x.invoke()
-                ret.resolve(v)
-            } catch(ex: Exception) {
-                println("EXCEPTION: ${ex.message}")
-                ret.reject(ex)
-            }
-        }
+        future {  x.invoke()}.whenComplete { t, u -> if(u == null) ret.resolve(t) else ret.reject(u) }
         return ret;
     }
 
     override fun listenIds(cb: Callback<Pair<Long, ByteArray>>) {
         async(context) {
             try {
-                repl.listenNewIds().consumeEach { x -> cb.stream(x) }
+                println(" r${repl.replId} listenIds installed")
+                repl.listenNewIds().consumeEach {
+                    x -> cb.stream(x)
+//                    println(" r${repl.replId} new id:${x.first}")
+                }
             } catch( ex:Exception){
+                println(" r${repl.replId} listenIds exception: ${ex.message}")
                 cb.reject("Exception")
             }
         }

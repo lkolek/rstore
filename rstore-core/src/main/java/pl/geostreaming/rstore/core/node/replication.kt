@@ -189,10 +189,10 @@ class Replicator(
         launch(context) {  processReplication() }
     }
 
+    val replFinished   = ConflatedChannel<Boolean>();
     private suspend fun processReplication(){
 
         val toReplChannnel = Channel<Pair<Long,ToReplicate>>();
-        val replFinished   = ConflatedChannel<Boolean>();
 
         logger.debug { "init replication from r${remote.replId}" }
 
@@ -268,7 +268,7 @@ class Replicator(
 
     private suspend fun append(seq:Long,oid:OID){
         if(seq > fullyReplicatedTo && !toReplicate.containsKey(seq)){
-            toReplicate.put(seq, if(myReplica.has(oid.hash)) NoOp(seq)
+            toReplicate.put(seq, if(myReplica.has(oid.hash)) { replFinished.send(true); NoOp(seq)}
                 else ToReplicate(seq, oid)
             )
             // TODO: signal processing
