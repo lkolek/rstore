@@ -2,6 +2,7 @@ rstore: replicated object store
 ====================================
 
 currently in alpha stage
+uses kotlin and kotlin coroutines
 
 ------
 
