@@ -95,6 +95,7 @@ class ReplicationTest:ReplTestBase() {
         val r1 = makeReplInmem(1, cl);
         val r2 = makeReplInmem(2, cl);
 
+        val RECORD_SIZE = 10_000;
 
         r2.introduceFrom(r1);
         r1.introduceFrom(r2);
@@ -126,7 +127,7 @@ class ReplicationTest:ReplTestBase() {
                     delay(50)
                 }
 //                val obj = ("" + i + ":lksjlh klfh lakj lkdsdlaks kalsk ").toByteArray()
-                val obj = randByteArray(1_000);
+                val obj = randByteArray(RECORD_SIZE);
                 r1.put(obj);
             }.last();
 
@@ -141,7 +142,8 @@ class ReplicationTest:ReplTestBase() {
                 if(i % 1000 == 0){
                     delay(50)
                 }
-                r2.put(("" + i + ":second to first ").toByteArray());
+                val obj = randByteArray(RECORD_SIZE);
+                r2.put(obj);
             }.last();
 
             cntr = 0;
@@ -169,7 +171,7 @@ class ReplicationTest:ReplTestBase() {
 
         val CNT = 100_000;
 //        val RECORD_SIZE = 50_000;
-        val RECORD_SIZE = 1_000;
+        val RECORD_SIZE = 10_000;
 
         val r1 = makeReplInmem(1, cl);
         val r2 = makeReplInmem(2, cl);
