@@ -57,3 +57,10 @@ Dual licensing model: Apache 2 License or LGPL v. 3
 
 Please be noted that some of dependecies uses LGPL license model.
 
+credentials / used libraries
+---
+
+- https://github.com/jankotek/mapdb 
+- https://github.com/RuedigerMoeller/kontraktor
+- https://github.com/RuedigerMoeller/fast-serialization
+- https://github.com/Kotlin/kotlinx.coroutines
