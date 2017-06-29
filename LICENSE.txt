@@ -1,4 +1,5 @@
-Dual license (to your choice):   
+Copyright (c) 2017 Geostreaming Łukasz Kolek
+Dual license (to your choice):
      Apache License 2.0
 or 
    GNU LESSER GENERAL PUBLIC LICENSE v. 3
