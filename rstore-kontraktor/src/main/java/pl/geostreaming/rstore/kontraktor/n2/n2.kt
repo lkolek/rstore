@@ -11,10 +11,7 @@ import org.nustaq.kontraktor.*
 import org.nustaq.kontraktor.annotations.AsCallback
 import org.nustaq.kontraktor.annotations.Local
 import pl.geostreaming.kt.Open
-import pl.geostreaming.rstore.core.model.HeartbitData
-import pl.geostreaming.rstore.core.model.IdList
-import pl.geostreaming.rstore.core.model.ObjId
-import pl.geostreaming.rstore.core.model.RsClusterDef
+import pl.geostreaming.rstore.core.model.*
 import pl.geostreaming.rstore.core.node.RelicaOpLog
 import pl.geostreaming.rstore.core.node.ReplicaMapdbImpl
 import java.util.function.Consumer
@@ -47,7 +44,7 @@ class RsNodeActor : Actor<RsNodeActor>() {
 
     fun has(oid:ByteArray): IPromise<Boolean> =noimpl()
 
-    fun listenIds(cb: Callback<Pair<Long, ByteArray>>){}
+    fun listenIds(cb: Callback<NewId>){}
     fun listenHeartbit(cb: Callback<HeartbitData>){}
 
     private fun <T> noimpl(): IPromise<T> = reject(RuntimeException("UNIMPLEMENTED, proxy:${isProxy}, obj=${this}"))
@@ -105,7 +102,7 @@ class RsNodeActorImpl : RsNodeActor(){
         return ret;
     }
 
-    override fun listenIds(cb: Callback<Pair<Long, ByteArray>>) {
+    override fun listenIds(cb: Callback<NewId>) {
         async(context) {
             try {
                 println(" r${repl.replId} listenIds installed")
@@ -131,8 +128,8 @@ class RemoteRepl(override val replId:Int,private val act:RsNodeActor): RelicaOpL
         private val context = newSingleThreadContext("Kontr2Kt");
     }
 
-    suspend override fun listenNewIds(): Channel<Pair<Long, ObjId>> {
-        val ch=Channel<Pair<Long, ObjId>>(100);
+    suspend override fun listenNewIds(): Channel<NewId> {
+        val ch=Channel<NewId>(100);
         act.listenIds(Callback { result, error -> runBlocking {
             if(Actors.isResult(error)){
                 ch.send(result)

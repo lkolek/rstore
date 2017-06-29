@@ -150,14 +150,14 @@ class ReplicaMapdbImplTest :ReplTestBase() {
             val oid = r1.put(obj1);
             delay(100);
             val ret = r1.queryIds(0,10)
-            Assert.assertTrue("should have new Id",oid.arrEquals( ret.ids[0].second))
+            Assert.assertTrue("should have new Id",oid.arrEquals( ret.ids[0].oid))
 
             val oid2 = r1.put("2 klfh lakj lkdsdlaks kalsk ".toByteArray());
             delay(100);
             val ret2 = r1.queryIds(0,10);
-            Assert.assertTrue("old Id present",oid.arrEquals( ret2.ids[0].second))
-            Assert.assertTrue("new Id present",oid2.arrEquals( ret2.ids[1].second))
-            Assert.assertTrue("new Id present",oid2.arrEquals( r1.queryIds(1,10).ids[0].second))
+            Assert.assertTrue("old Id present",oid.arrEquals( ret2.ids[0].oid))
+            Assert.assertTrue("new Id present",oid2.arrEquals( ret2.ids[1].oid))
+            Assert.assertTrue("new Id present",oid2.arrEquals( r1.queryIds(1,10).ids[0].oid))
 
             Assert.assertTrue("no more ids",r1.queryIds(2,10).ids.isEmpty())
 

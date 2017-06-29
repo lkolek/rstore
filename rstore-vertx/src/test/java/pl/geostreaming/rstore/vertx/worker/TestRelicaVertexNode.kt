@@ -1,6 +1,7 @@
 package pl.geostreaming.rstore.vertx.worker
 
 import io.vertx.core.Vertx
+import io.vertx.core.http.HttpClientOptions
 import io.vertx.ext.web.Router
 import org.junit.Test
 import pl.geostreaming.rstore.core.model.RsCluster
@@ -22,11 +23,28 @@ class TestRelicaVertexNode : ReplTestBase(){
         val cl = RsCluster(cfg);
         val r1 = makeReplInmem(1,cl);
 
-        val vr1 = ReplicaVertxNode(v,r1,s)
+        val vr1 = ReplicaVertxNode(v,r1)
 
 
         rr.mountSubRouter("/api/rstore", vr1.router)
         s.requestHandler{ rr.accept(it) }.listen(8000)
+
+        // client
+
+//        val sock = SockJS
+
+        val opts = HttpClientOptions().apply {
+//            logActivity=true
+        }
+        println("creting client")
+        val httpcl = v.createHttpClient(opts)
+        println("creted client")
+        httpcl.websocket(8000, "localhost", "/api/rstore/heartbit/json"){ socket ->
+            println("Socket connected")
+            socket.textMessageHandler { x -> println("socket received: ${x}") }
+            socket.binaryMessageHandler { x -> println("socket received bin: ${x}")}
+        }
+
 
         Thread.sleep(600_000);
 

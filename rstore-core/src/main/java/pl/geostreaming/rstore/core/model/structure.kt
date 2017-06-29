@@ -169,9 +169,10 @@ class RsCluster(val cfg:RsClusterDef){
 /// ---- others, for communiaction
 
 class NotThisNode(msg:String):Exception(msg), java.io.Serializable;
+data class NewId(val seq:Long, val oid:ObjId):Serializable
 
 data class IdList(
-        val ids:ArrayList<Pair<Long,ObjId>>,
+        val ids:ArrayList<NewId>,
         val afterSeqId:Long,
         val lastSeqId:Long
 ): java.io.Serializable;

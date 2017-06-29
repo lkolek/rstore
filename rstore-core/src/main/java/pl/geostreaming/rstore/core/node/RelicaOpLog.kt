@@ -8,6 +8,7 @@ import org.mapdb.BTreeMap
 import org.mapdb.DB
 import org.mapdb.HTreeMap
 import pl.geostreaming.rstore.core.model.*
+import java.io.Serializable
 import java.util.*
 import kotlin.coroutines.experimental.CoroutineContext
 import kotlin.collections.ArrayList
@@ -15,7 +16,6 @@ import kotlin.collections.ArrayList
 /**
  * Created by lkolek on 25.06.2017.
  */
-
 
 
 /**
@@ -36,7 +36,7 @@ interface RelicaOpLog {
     /**
      * create new channel with new (seqId,ObjId) pair for every object added to this replica
      */
-    suspend fun listenNewIds():Channel<Pair<Long, ObjId>>;
+    suspend fun listenNewIds():Channel<NewId>;
 
     /**
      * Query ids (hashes) after given seqId

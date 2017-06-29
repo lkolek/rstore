@@ -7,9 +7,11 @@ import io.vertx.core.http.HttpServer
 import io.vertx.core.json.Json
 import io.vertx.ext.web.Router
 import io.vertx.ext.web.handler.BodyHandler
+import io.vertx.ext.web.handler.sockjs.SockJSHandler
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.channels.ConflatedChannel
 import kotlinx.coroutines.experimental.channels.consumeEach
+import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.newSingleThreadContext
 import org.nustaq.serialization.FSTConfiguration
@@ -31,14 +33,16 @@ import pl.geostreaming.rstore.core.model.NotThisNode
 class ReplicaVertxNode(
         val vertx:Vertx,
         val repl:ReplicaManager,
-        val server:HttpServer,
 
-        ctx: CoroutineContext? = null) {
+        ctx: CoroutineContext? = null
+) {
     val router:Router = Router.router(vertx)
     val context = ctx ?: newSingleThreadContext("vertx repl ctx")
     private val lastHeartbit = AtomicReference<HeartbitData>();
     private val base64dec = Base64.getUrlDecoder();
     private val base64enc = Base64.getUrlEncoder();
+    private val sockNewIds = SockJSHandler.create(vertx)
+    private val sockHeartbit = SockJSHandler.create(vertx)
 
     private companion object {
         val fstCfg = FSTConfiguration.createDefaultConfiguration()
@@ -161,6 +165,66 @@ class ReplicaVertxNode(
                         }
                     }
                 }
+
+        // sockJS: no kotlin/vertx client?
+
+//        sockNewIds.socketHandler { sock ->
+//            sock.handler { buff ->   println("Socket received: ${buff}") }
+//            launch(context){
+//                repl.listenNewIds().consumeEach { x->
+//                    sock.write( Json.encode(x) )
+//                }
+//            }
+//        }
+//
+//        router.route("/newIds/json/*").handler(sockNewIds)
+//
+//        sockHeartbit.socketHandler { sock ->
+//            sock.handler { buff ->   println("Socket received: ${buff}") }
+//            launch(context){
+//                repl.heartbit().consumeEach { x->
+//                    sock.write( Json.encode(x) )
+//                }
+//            }
+//        }
+//
+//        router.route("/heartbit/json/*").handler(sockNewIds)
+
+        router.route("/newIds/json").handler{ r ->
+            val socket = r.request().upgrade()
+            socket.handler { x -> println("newIds socket received, ignoring") }
+            launch(context){
+                try {
+                    repl.listenNewIds().consumeEach { x ->
+                        while(socket.writeQueueFull()){
+                            delay(20)
+                        }
+                        socket.writeTextMessage(Json.encode(x))
+                    }
+                }catch(ex:Exception){
+                    println("Socket ex ${ex.message}")
+                    socket.close()
+                }
+            }
+        }
+
+        router.route("/heartbit/json").handler{ r ->
+            val socket = r.request().upgrade()
+            socket.handler { x -> println("newIds socket received, ignoring") }
+            launch(context){
+                try {
+                    repl.heartbit().consumeEach { x ->
+                        while(socket.writeQueueFull()){
+                            delay(20)
+                        }
+                        socket.writeTextMessage(Json.encode(x))
+                    }
+                }catch(ex:Exception){
+                    println("Socket ex ${ex.message}")
+                    socket.close()
+                }
+            }
+        }
 
     }
 

@@ -49,8 +49,8 @@ class ReplicaMapdbImpl (
     val COMMIT_DELAY:Long = 1500;
     private var toCommit = false;
 
-    private val newIds = Channel<Pair<Long, ObjId>>(100);
-    private val newIdsListeners = ArrayList<Channel<Pair<Long, ObjId>>>();
+    private val newIds = Channel<NewId>(100);
+    private val newIdsListeners = ArrayList<Channel<NewId>>();
     private val heartbitListeners = ArrayList<Channel<HeartbitData>>();
 
     private companion object: KLogging()
@@ -72,8 +72,8 @@ class ReplicaMapdbImpl (
 
 
 
-    suspend override fun listenNewIds():Channel<Pair<Long, ObjId>> = run(context){
-        val ret = Channel<Pair<Long, ObjId>>(100);
+    suspend override fun listenNewIds():Channel<NewId> = run(context){
+        val ret = Channel<NewId>(100);
         newIdsListeners.add(ret);
         ret;
     }
@@ -110,7 +110,7 @@ class ReplicaMapdbImpl (
             seq2id.put(seqId, oid);
 
             delayedCommit();
-            newIds.offer( Pair(seqId,oid));
+            newIds.offer( NewId(seqId,oid));
             // TODO: should we wait for ending ?
         }
         oid;
@@ -123,7 +123,7 @@ class ReplicaMapdbImpl (
         val r1 = ArrayList(seq2id
                 .tailMap(afertSeqId,false)
                 .entries.take(cnt)
-                .map { x -> Pair(x.key,x.value) }
+                .map { x -> NewId(x.key,x.value) }
         );
         IdList(r1, afertSeqId, seq.get());
     }
