@@ -68,7 +68,7 @@ interface RelicaOpLog {
 }
 
 
-interface ReplicaManager {
+interface ReplicaManager : RelicaOpLog{
     /**
      * creates new heartbit channel with [HeartbitData] every 1s
      */

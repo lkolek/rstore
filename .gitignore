@@ -4,3 +4,5 @@ build/
 data/*
 *.iml
 */*.iml
+.vertx/
+/rstore-vertx/file-uploads/
