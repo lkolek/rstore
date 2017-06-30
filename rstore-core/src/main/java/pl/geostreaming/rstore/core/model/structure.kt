@@ -1,5 +1,7 @@
 package pl.geostreaming.rstore.core.model
 
+import com.fasterxml.jackson.annotation.JsonProperty
+import pl.geostreaming.rstore.core.util.toHexString
 import java.io.Serializable
 import java.nio.ByteBuffer
 import java.nio.LongBuffer
@@ -169,7 +171,11 @@ class RsCluster(val cfg:RsClusterDef){
 /// ---- others, for communiaction
 
 class NotThisNode(msg:String):Exception(msg), java.io.Serializable;
-data class NewId(val seq:Long, val oid:ObjId):Serializable
+data class NewId(val seq:Long, val oid:ObjId):Serializable{
+    override fun toString(): String {
+        return "NewId(seq=$seq, oid=${oid.toHexString()}})"
+    }
+}
 
 data class IdList(
         val ids:ArrayList<NewId>,

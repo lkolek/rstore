@@ -91,29 +91,31 @@ class TestRelicaVertexNode : ReplTestBase(){
         Thread.sleep(1000)
         println("---- after")
 
+        val r1r = RemoteVertxReplica(v,"localhost",8000,1)
         val r2r = RemoteVertxReplica(v2,"localhost",8001,2)
         Thread.sleep(1000)
 
-
         r1.introduceFrom(r2r);
+        r2.introduceFrom(r1r);
+        Thread.sleep(1000)
 
-        val pending = AtomicInteger();
+//        val pending = AtomicInteger();
 
 
         runBlocking {
             (0..100_000).forEach { x ->
-                if (pending.get() > 100) {
-                    while (pending.get() > 10) {
-                        delay(100)
-                    }
-                }
-                pending.getAndIncrement();
-                val xx = r1.put(randByteArray(10_000))
+//                if (pending.get() > 100) {
+//                    while (pending.get() > 10) {
+//                        delay(100)
+//                    }
+//                }
+//                pending.getAndIncrement();
+                val xx = r2.put(randByteArray(1_000))
 
             }
-            while (pending.get() > 0) {
-                delay(100)
-            }
+//            while (pending.get() > 0) {
+//                delay(100)
+//            }
         }
         Thread.sleep(600_000);
 

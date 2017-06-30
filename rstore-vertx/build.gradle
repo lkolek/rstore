@@ -24,9 +24,11 @@ repositories {
 
 dependencies {
     compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$kotlin_version"
+    compile "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
     compile "io.vertx:vertx-core:$vertx_version"
     compile "io.vertx:vertx-web:$vertx_version"
     compile "de.ruedigermoeller:fst:2.50"
+    compile "com.fasterxml.jackson.module:jackson-module-kotlin:2.8.9"
 
     compile project(":rstore-core")
 

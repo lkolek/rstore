@@ -172,6 +172,7 @@ class ReplicaMapdbImpl (
     }
 
     override fun introduceFrom(remote: RelicaOpLog) {
+        logger.info{"r${replId} - introduce from ${remote.replId}"}
         if(!remoteReplications.containsKey(remote.replId)){
             remoteReplications.put(remote.replId, Pair(remote,
                     Replicator(this,remote,retriver,200,db,context) ))

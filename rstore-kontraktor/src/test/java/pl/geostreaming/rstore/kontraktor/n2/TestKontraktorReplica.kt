@@ -1,5 +1,9 @@
 package pl.geostreaming.rstore.kontraktor.n2
 
+import kotlinx.coroutines.experimental.CommonPool
+import kotlinx.coroutines.experimental.channels.consumeEach
+import kotlinx.coroutines.experimental.launch
+import kotlinx.coroutines.experimental.selects.select
 import org.junit.Test
 import org.nustaq.kontraktor.Actors
 import org.nustaq.kontraktor.remoting.tcp.TCPConnectable
@@ -34,6 +38,10 @@ class TestKontraktorReplica : ReplTestBase(){
         Thread.sleep(100)
 
 
+        launch(CommonPool){
+            r1.heartbit().consumeEach { h -> println("r1 hb: ${h}") }}
+        launch(CommonPool){ r2.heartbit().consumeEach { h -> println("r2 hb: ${h}") }}
+
 //        r1Act.introduce(2, r2Act).await();
 //        r2Act.introduce(1, r1Act).await();
 
@@ -63,11 +71,15 @@ class TestKontraktorReplica : ReplTestBase(){
 
         val pending = AtomicInteger();
 
+        println("--- START sending")
         (0..100_000).forEach { x ->
             if(pending.get() > 100) {
                 while (pending.get() > 10) {
                     Thread.sleep(100)
                 }
+            }
+            if(x % 1000 == 0){
+                println("inserting ${x}")
             }
             pending.getAndIncrement();
             val xx = actRem.put(randByteArray(10_000), true)

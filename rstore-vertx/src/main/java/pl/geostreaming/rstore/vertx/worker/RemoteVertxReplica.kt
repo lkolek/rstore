@@ -1,7 +1,9 @@
 package pl.geostreaming.rstore.vertx.worker
 
 import io.vertx.core.Vertx
+import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpClientOptions
+import io.vertx.core.http.HttpHeaders
 import io.vertx.core.json.Json
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.channels.Channel
@@ -12,6 +14,7 @@ import pl.geostreaming.rstore.core.model.ObjId
 import pl.geostreaming.rstore.core.node.RelicaOpLog
 import java.nio.charset.Charset
 import java.util.*
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.experimental.CoroutineContext
 import kotlin.coroutines.experimental.suspendCoroutine
 
@@ -33,13 +36,19 @@ class RemoteVertxReplica (
         defaultHost = host
         defaultPort = port
         //            logActivity=true
+        maxPoolSize = 20
     });
     private val base64dec = Base64.getUrlDecoder();
     private val base64enc = Base64.getUrlEncoder();
     private val baseUri = "/api/rstore";
 
+    val getCnt = AtomicInteger();
+
     suspend override fun get(oid: ObjId)  =suspendCoroutine<ByteArray?>{ x->
-        httpCl.getNow(baseUri + "/get/" +base64enc.encode(oid) ){res ->
+        val uri = "${baseUri}/get/${base64enc.encodeToString(oid)}"
+        if(getCnt.incrementAndGet() % 100 == 0)
+        println("get request no ${getCnt.get()} ${uri}")
+        httpCl.getNow(uri ){res ->
             when(res.statusCode()){
                 200 -> res.bodyHandler{ b -> x.resume(b.bytes)}
                 404 -> x.resume(null)
@@ -55,6 +64,9 @@ class RemoteVertxReplica (
                 else -> x.resumeWithException(RuntimeException("Http post ex ${res.statusCode()}"))
             }
         }
+                .putHeader(HttpHeaders.CONTENT_TYPE, "application/octet-stream")
+                .write(Buffer.buffer(obj))
+                .end()
     }
 
     suspend override fun queryIds(afertSeqId: Long, cnt: Int)  =suspendCoroutine<IdList>{ x->
@@ -82,7 +94,9 @@ class RemoteVertxReplica (
             println("/newIds/json connected");
             socket.textMessageHandler { x ->
                 val xx = Json.decodeValue(x, NewId::class.java)
+//                println("NewId received ${xx}")
                 async(context){
+                    if(xx.seq %1000L == 0L) println("Sended ${xx}")
                     ch.send( xx )
                 }
 
