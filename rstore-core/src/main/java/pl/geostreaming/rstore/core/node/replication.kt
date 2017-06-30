@@ -8,6 +8,7 @@ import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.ConflatedChannel
 import kotlinx.coroutines.experimental.channels.consumeEach
+import kotlinx.coroutines.experimental.future.await
 import kotlinx.coroutines.experimental.selects.select
 import kotlinx.coroutines.experimental.sync.Mutex
 import kotlinx.coroutines.experimental.sync.withLock
@@ -16,6 +17,7 @@ import org.mapdb.DB
 import pl.geostreaming.rstore.core.model.*
 import pl.geostreaming.rstore.core.util.toHexString
 import java.util.*
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.collections.ArrayList
 import kotlin.coroutines.experimental.CoroutineContext
@@ -61,20 +63,28 @@ class RetriverWorker(
 ) {
     private companion object: KLogging()
     private val myjob = Job()
-    protected val pendingOids = HashMap<OID,MultiReceiver<Boolean>>();
+    protected val pendingOids = HashMap<OID,CompletableFuture<Boolean>>();
 
 
     suspend fun pending() = run(context) {pendingOids.size}
-    suspend fun has(oid: OID) = run(context) {pendingOids.contains(oid);}
+    suspend fun has(oid: OID) = run(context) {pendingOids.containsKey(oid);}
+
+    suspend fun replicate(oid: OID, fromRepl: RelicaOpLog):Boolean  = run(context + myjob) {
+        val obj = fromRepl.get(oid.hash);
+        if (obj != null) {
+            myReplica.put(obj);
+            true
+        } else {false}
+    }
 
     /**
      * Calls for replication.
      * Returns after finishing operation (both positive and negative).
      * In case there is one like this pending, it waits for replication
      */
-    suspend fun replicate(oid: OID, fromRepl: RelicaOpLog):Boolean  = run(context + myjob) {
-        if (!pendingOids.containsKey(oid)) {
-            val murec = MultiReceiver<Boolean>()
+    suspend fun replicate2(oid: OID, fromRepl: RelicaOpLog):Boolean  = run(context + myjob) {
+        if (!has(oid)) {
+            val murec = CompletableFuture<Boolean>()
             pendingOids.put(oid, murec)
 
 //            async(context) {
@@ -82,24 +92,24 @@ class RetriverWorker(
                     val obj = fromRepl.get(oid.hash);
                     if (obj != null) {
                         myReplica.put(obj);
-                        murec.set(true);
+                        murec.complete(true);
                     } else {
                         // TODO: proper Exception
 //                        throw RuntimeException("Object id=${oid.hash} not present in remote");
-                        murec.set(false);
+                        murec.complete(false);
                     }
                 } catch (ex:Exception){
-                    murec.set(false);
                     logger.warn("EXCEPTION when replicating from r${fromRepl.replId}");
+                    murec.completeExceptionally(ex);
                 } finally {
                     // TODO handling exception, set(false)
                     pendingOids.remove(oid);
                 }
 //            }
-            murec.get()
+            murec.await()
         } else {
             // already replicating: how to wait for finish?
-            pendingOids.get(oid)!!.get()
+            pendingOids.get(oid)!!.await()
         }
     }
 
@@ -228,6 +238,7 @@ class Replicator(
                 delay(100)
                 performCleaning();
             }
+            logger.warn{"closed cleaning!"}
         }
 
         // adding to replicators
@@ -261,6 +272,7 @@ class Replicator(
             logger.trace { "R:${myReplica.replId} new oids from ${remoteId}: ${seqId}" }
         lastSeqIdRemote = seqId // max tested inside
         append(seqId,OID(oid))
+        yield()
     }
 
     // this should be changed somehow to ReplicaManager
@@ -340,5 +352,6 @@ class Replicator(
      * How far replication is behind of src replica
      */
     suspend fun behind() = run(context){this.lastSeqIdRemote - fullyReplicatedTo}
+    suspend fun report() = run(context){ "r${remote.replId}->${myReplica.replId} lseq:${lastSeqIdRemote}, frt:${fullyReplicatedTo}" }
 
 }

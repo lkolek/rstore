@@ -47,10 +47,12 @@ open class ReplTestBase {
         File(location).listFiles().filter { it.name.startsWith("db") } .forEach { f -> f.delete() }
     }
 
+    val rnd = Random()
+
     fun randByteArray(size:Int):ByteArray{
         val ba = ByteArray(size);
         val bb = ByteBuffer.wrap(ba)
-        (0 until size/4).forEach { i-> bb.putInt(i, (Math.random() * Int.MAX_VALUE).toInt() ) }
+        (0 until size/4).forEach { i-> bb.putInt(i, rnd.nextInt()) }
         return ba;
     }
 

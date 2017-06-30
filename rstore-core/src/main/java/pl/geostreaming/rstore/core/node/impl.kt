@@ -9,6 +9,7 @@ import kotlinx.coroutines.experimental.sync.withLock
 import mu.KLogging
 import org.mapdb.DB
 import pl.geostreaming.rstore.core.model.*
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.experimental.CoroutineContext
 import kotlin.collections.ArrayList
 
@@ -62,7 +63,7 @@ class ReplicaMapdbImpl (
             newIdsListeners.forEach { r ->
                 try {
                     /* ? offer */
-                    r.offer(id)
+                    r.send(id)
                 } catch( ex:Exception ){
                     logger.warn { "newId sending exception:${ex.message}" }
                 }
@@ -72,7 +73,7 @@ class ReplicaMapdbImpl (
 
 
 
-    suspend override fun listenNewIds():Channel<NewId> = run(context){
+    suspend override fun listenNewIds():Channel<NewId> = own{
         val ret = Channel<NewId>(100);
         newIdsListeners.add(ret);
         ret;
@@ -93,13 +94,13 @@ class ReplicaMapdbImpl (
     /**
      * Gets given object (if avaible).
      */
-    suspend override fun get(oid: ObjId)= run(context) {objs.get(oid);}
+    suspend override fun get(oid: ObjId)= own {objs.get(oid);}
 
     /**
      * Internal put. Object belongs to that replica (checked).
      * Should be called in replica thread
      */
-    suspend override fun put(obj: ByteArray): ObjId = run(context) {
+    suspend override fun put(obj: ByteArray): ObjId = own {
         val oid = cl.objectId(obj);
         if(!cl.isReplicaForObjectId(oid, replId)){
             throw NotThisNode("Put not for this node")
@@ -119,7 +120,7 @@ class ReplicaMapdbImpl (
     /**
      * Query for ids after given seqId, acording to local ordering.
      */
-    suspend override fun queryIds(afertSeqId: Long, cnt: Int): IdList = run(context) {
+    suspend override fun queryIds(afertSeqId: Long, cnt: Int): IdList = own {
         val r1 = ArrayList(seq2id
                 .tailMap(afertSeqId,false)
                 .entries.take(cnt)
@@ -137,7 +138,7 @@ class ReplicaMapdbImpl (
         myjob.cancel()
     }
 
-    suspend override fun has(oid: ObjId) = run(context) {objs.containsKey(oid)}
+    suspend override fun has(oid: ObjId) = own {objs.containsKey(oid)}
 
 
 
@@ -149,7 +150,8 @@ class ReplicaMapdbImpl (
 
         while(true) {
             val hb = HeartbitData(System.currentTimeMillis(), replId,
-                    seq.get(),remoteReplications.values.map { x-> x.second.behind() }.sum()
+                    seq.get(),remoteReplications.values.map { x-> x.second.behind() }.sum(),
+                    remoteReplications.values.map { x-> "{${x.second.report()}}" }.joinToString(",")
             )
             logger.debug { "Heartbit r${replId}: ${hb}" }
 
@@ -158,7 +160,7 @@ class ReplicaMapdbImpl (
         }
     }
 
-    suspend override fun heartbit():Channel<HeartbitData> = run(context + myjob){
+    suspend override fun heartbit():Channel<HeartbitData> = own{
         val ret = Channel<HeartbitData>();
         heartbitListeners.add(ret);
         ret;
@@ -180,4 +182,12 @@ class ReplicaMapdbImpl (
         // TODO: reintroduce
     }
 
+    private val xxcnt = AtomicLong()
+    protected suspend fun <T> own(block: suspend ()->T):T = run(context+myjob){
+//        val no = xxcnt.incrementAndGet()
+//        println("    ++> ${no}")
+        val ret = block.invoke()
+//        println("    --> ${no}")
+        ret
+    }
 }

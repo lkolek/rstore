@@ -110,10 +110,10 @@ data class RsClusterDef private constructor(
  * Contains clustering / partitioning calculations for cluster of replicas
  */
 class RsCluster(val cfg:RsClusterDef){
-    private val md = MessageDigest.getInstance("SHA-256");
+    private fun md() = MessageDigest.getInstance("SHA-256");
 
     fun ByteArray.toObjectId():ByteArray{
-        return md.digest(this)
+        return md().digest(this)
     }
 
     fun ObjId.toSlot():Int{
@@ -184,8 +184,8 @@ data class IdList(
 ): java.io.Serializable;
 
 
-data class HeartbitData(val time:Long, val replId:Int, val lastSeq:Long, val totalBelow:Long): java.io.Serializable {
+data class HeartbitData(val time:Long, val replId:Int, val lastSeq:Long, val totalBelow:Long, val replReport:String): java.io.Serializable {
     override fun toString(): String {
-        return "HeartbitData(time=$time, replId=$replId, lastSeq=$lastSeq, totalBelow=$totalBelow)"
+        return "HeartbitData(time=$time, replId=$replId, lastSeq=$lastSeq, totalBelow=$totalBelow, replReport=$replReport)"
     }
 }
