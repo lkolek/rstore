@@ -103,21 +103,28 @@ class TestRelicaVertexNode : ReplTestBase(){
 
 
         runBlocking {
-            (0..100_000).forEach { x ->
+
+            val ll = (0..100_000).map { x ->
 //                if (pending.get() > 100) {
 //                    while (pending.get() > 10) {
 //                        delay(100)
 //                    }
 //                }
 //                pending.getAndIncrement();
-                val xx = r2.put(randByteArray(1_000))
+                val xx = r2.put(randByteArray(10_000))
+                xx
+            }.last()
 
+            while(!r1.has(ll)) {
+                delay(100)
             }
-//            while (pending.get() > 0) {
-//                delay(100)
-//            }
+
+
+            delay(1000)
         }
-        Thread.sleep(600_000);
+
+
+//        Thread.sleep(600_000);
 
         s.close();
     }

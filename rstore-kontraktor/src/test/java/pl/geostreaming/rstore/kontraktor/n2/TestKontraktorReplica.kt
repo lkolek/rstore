@@ -73,9 +73,9 @@ class TestKontraktorReplica : ReplTestBase(){
 
         println("--- START sending")
         (0..100_000).forEach { x ->
-            if(pending.get() > 100) {
+            if(pending.get() > 400) {
                 while (pending.get() > 10) {
-                    Thread.sleep(100)
+                    Thread.sleep(30)
                 }
             }
             if(x % 1000 == 0){

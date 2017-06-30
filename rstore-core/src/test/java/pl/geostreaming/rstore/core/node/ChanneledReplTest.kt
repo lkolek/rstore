@@ -113,11 +113,11 @@ class ChanneledReplTest :ReplTestBase() {
         val r1r = ChanneledRemote(1,r1c.inbox, r1c.outbox, r2.context)
         val r2r = ChanneledRemote(2,r2c.inbox, r2c.outbox, r1.context)
 
-        r2.introduceFrom(r1);
-        r1.introduceFrom(r2);
+//        r2.introduceFrom(r1);
+//        r1.introduceFrom(r2);
 
-//        r2.introduceFrom(r1r);
-//        r1.introduceFrom(r2r);
+        r2.introduceFrom(r1r);
+        r1.introduceFrom(r2r);
 
         var lastSeq = 0L;
         runBlocking {

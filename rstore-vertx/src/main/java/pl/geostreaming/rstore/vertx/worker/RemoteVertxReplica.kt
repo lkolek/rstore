@@ -46,7 +46,7 @@ class RemoteVertxReplica (
 
     suspend override fun get(oid: ObjId)  =suspendCoroutine<ByteArray?>{ x->
         val uri = "${baseUri}/get/${base64enc.encodeToString(oid)}"
-        if(getCnt.incrementAndGet() % 100 == 0)
+        if(getCnt.incrementAndGet() % 1000 == 0)
         println("get request no ${getCnt.get()} ${uri}")
         httpCl.getNow(uri ){res ->
             when(res.statusCode()){
