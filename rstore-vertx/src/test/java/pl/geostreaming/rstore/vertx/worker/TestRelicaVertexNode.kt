@@ -17,11 +17,11 @@ import java.util.concurrent.atomic.AtomicInteger
  * Created by lkolek on 29.06.2017.
  */
 class TestRelicaVertexNode : ReplTestBase(){
-//    val CNT = 100_000
-//    val REC_SIZE = 1_000
+    val CNT = 100_000
+    val REC_SIZE = 1_000
 
-    val CNT = 100
-    val REC_SIZE = 20_000_000
+//    val CNT = 100
+//    val REC_SIZE = 20_000_000
 
     //    @Test
     fun test1(){
