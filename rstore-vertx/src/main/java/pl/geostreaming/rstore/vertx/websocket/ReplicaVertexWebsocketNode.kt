@@ -57,11 +57,15 @@ class ReplicaVertexWebsocketNode(
             val socket = r.request().upgrade()
             val ch = ChanneledReplica(repl, context)
 
-            socket.binaryMessageHandler { x -> launch(context) {
-                val op = fstCfg.asObject(x.bytes) as? RsOpReq;
-                if(op !== null)
-                    ch.inbox.send(op)
-            }}
+            socket.binaryMessageHandler { x ->
+                val b= x.bytes
+
+                launch(context) {
+                    val op = fstCfg.asObject(b) as? RsOpReq;
+                    if(op !== null)
+                        ch.inbox.send(op)
+                }
+            }
 
             launch(context) {
                 ch.outbox.consumeEach { op->

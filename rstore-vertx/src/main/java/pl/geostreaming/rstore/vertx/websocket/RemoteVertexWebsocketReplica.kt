@@ -44,7 +44,8 @@ class RemoteVertexWebsocketReplica(
         defaultHost = host
         defaultPort = port
         //            logActivity=true
-        maxPoolSize = 20
+        maxPoolSize = 5
+        maxWebsocketMessageSize = maxWebsocketFrameSize * 16*10
     })
 
     init{
@@ -52,9 +53,16 @@ class RemoteVertexWebsocketReplica(
             println("/channel connected");
 
             socket.binaryMessageHandler { x ->
-                val opr = fstCfg.asObject(x.bytes) as? RsOpResp
-                if(opr != null){
-                    async(context){outb.send(opr)}
+                try {
+//                    println("binary msg size=${x.length()}")
+                    val opr = fstCfg.asObject(x.bytes) as? RsOpResp
+                    if (opr != null) {
+                        async(context) { outb.send(opr) }
+                    } else {
+                        println("!!! cant deserialize!")
+                    }
+                }catch (ex:Exception){
+                    ex.printStackTrace()
                 }
             }
 

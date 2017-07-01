@@ -29,7 +29,7 @@ import kotlin.coroutines.experimental.suspendCoroutine
 class ChanneledReplica(
         val repl:ReplicaManager,
         val context: CoroutineContext = newSingleThreadContext("Chann r${repl.replId}"),
-        val concurrency:Int = 10
+        val concurrency:Int = 5
 ){
     private val chIn= Channel<RsOpReq>(10)
     private val chOut= Channel<RsOpResp>(10)
@@ -82,6 +82,10 @@ open class ChanneledRemote(
         launch(context){
             outboxRemote.consumeEach { x ->
                 try {
+//                    if(x.opid % 1000L == 0L){
+//                        println("consume ${x.opid} handlers=${handlers.size}")
+//                    }
+
                     val hh = handlers.get(x.opid)
                     if(hh != null){
                         hh.invoke(x)
@@ -102,9 +106,11 @@ open class ChanneledRemote(
         handlers.put(this.opid){ x-> cc.complete(x); handlers.remove(this.opid) }
         inboxRemote.send(this);
         val xx1 = cc.await();
+
         val ret = block.invoke(xx1)
         return ret;
     }
+
 
     override suspend fun queryIds(afterSeqId:Long, cnt:Int): IdList =run(context){
         val q = RsOpReq_queryIds(opseq, afterSeqId, cnt);
@@ -132,7 +138,7 @@ open class ChanneledRemote(
 
     override suspend fun listenNewIds():Channel<NewId> =run(context){
         val q = RsOpReq_listenNewIds(opseq);
-        val ret = Channel<NewId>(10);
+        val ret = Channel<NewId>(100);
 
         handlers.put(q.opid, { r ->
             when(r){
