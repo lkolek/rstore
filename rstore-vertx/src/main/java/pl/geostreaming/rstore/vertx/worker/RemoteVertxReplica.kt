@@ -65,6 +65,7 @@ class RemoteVertxReplica (
             }
         }
                 .putHeader(HttpHeaders.CONTENT_TYPE, "application/octet-stream")
+                .putHeader(HttpHeaders.CONTENT_LENGTH, "${obj.size}")
                 .write(Buffer.buffer(obj))
                 .end()
     }
@@ -96,7 +97,6 @@ class RemoteVertxReplica (
                 val xx = Json.decodeValue(x, NewId::class.java)
 //                println("NewId received ${xx}")
                 async(context){
-                    if(xx.seq %1000L == 0L) println("Sended ${xx}")
                     ch.send( xx )
                 }
 

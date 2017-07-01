@@ -212,8 +212,6 @@ class ReplicaVertxNode(
                     try {
                         println("newIds upgraded")
                         repl.listenNewIds().consumeEach { x ->
-                            if (x.seq % 1000L == 0L)
-                                println("to send ${x}")
                             while (socket.writeQueueFull()) {
                                 delay(20)
                             }

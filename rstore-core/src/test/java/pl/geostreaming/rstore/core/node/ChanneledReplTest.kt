@@ -104,6 +104,8 @@ class ChanneledReplTest :ReplTestBase() {
 
         val r1 = makeReplInmem(1, cl);
         val r2 = makeReplInmem(2, cl);
+//        val r1 = makeReplFile(1, cl);
+//        val r2 = makeReplFile(2, cl);
 
         val RECORD_SIZE = 10_000;
 

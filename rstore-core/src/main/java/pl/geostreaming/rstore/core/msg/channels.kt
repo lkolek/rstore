@@ -66,7 +66,7 @@ class ChanneledReplica(
     }
 }
 
-class ChanneledRemote(
+open class ChanneledRemote(
         override val replId:Int,
         val inboxRemote: SendChannel<RsOpReq>,
         val outboxRemote: ReceiveChannel<RsOpResp>,

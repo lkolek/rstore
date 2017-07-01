@@ -69,7 +69,7 @@ class RetriverWorker(
     suspend fun pending() = run(context) {pendingOids.size}
     suspend fun has(oid: OID) = run(context) {pendingOids.containsKey(oid);}
 
-    suspend fun replicate(oid: OID, fromRepl: RelicaOpLog):Boolean  = run(context + myjob) {
+    suspend fun replicate2(oid: OID, fromRepl: RelicaOpLog):Boolean  = run(context + myjob) {
         val obj = fromRepl.get(oid.hash);
         if (obj != null) {
             myReplica.put(obj);
@@ -82,7 +82,7 @@ class RetriverWorker(
      * Returns after finishing operation (both positive and negative).
      * In case there is one like this pending, it waits for replication
      */
-    suspend fun replicate2(oid: OID, fromRepl: RelicaOpLog):Boolean  = run(context + myjob) {
+    suspend fun replicate(oid: OID, fromRepl: RelicaOpLog):Boolean  = run(context + myjob) {
         if (!has(oid)) {
             val murec = CompletableFuture<Boolean>()
             pendingOids.put(oid, murec)
