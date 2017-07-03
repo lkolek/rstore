@@ -4,6 +4,7 @@ rstore: replicated object store
 currently in alpha stage
 
 uses kotlin and kotlin coroutines
+vertx is used (still poorly) to provide http based interface
 
 **all can change in the future ;)**
 
@@ -44,8 +45,8 @@ todo
 - [x] basic cluster conf
 - [x] hash (objectId)
 - [x] objectid to slot
-- [ ] slot to replica
-- [ ] node storage
+- [x] slot to replica
+- [x] node storage
 - [ ] node object changes protocol / stream
 
 license
@@ -61,6 +62,5 @@ credentials / used libraries
 ---
 
 - https://github.com/jankotek/mapdb 
-- https://github.com/RuedigerMoeller/kontraktor
-- https://github.com/RuedigerMoeller/fast-serialization
 - https://github.com/Kotlin/kotlinx.coroutines
+- https://github.com/eclipse/vert.x
