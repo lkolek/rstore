@@ -45,7 +45,7 @@ class RemoteVertexWebsocketReplica(
         defaultPort = port
         //            logActivity=true
         maxPoolSize = 5
-        maxWebsocketMessageSize = maxWebsocketFrameSize * 16*10
+        maxWebsocketMessageSize = maxWebsocketFrameSize * 16*100
     })
 
     init{
