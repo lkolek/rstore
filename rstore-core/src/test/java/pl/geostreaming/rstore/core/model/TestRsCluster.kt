@@ -26,7 +26,7 @@ class TestRsCluster{
 
         val mapper = jacksonObjectMapper()
         val def = mapper.writeValueAsString(clDef);
-        println("def (json):" + def);
+        println("def (json):" + def );
 
         val cldef2 = mapper.readValue(def,RsClusterDef::class.java)
         println("deserialized:" + cldef2);

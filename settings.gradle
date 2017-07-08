@@ -1,5 +1,4 @@
 rootProject.name = 'rstore'
 include 'rstore-core'
-include 'rstore-kontraktor'
 include 'rstore-vertx'
 

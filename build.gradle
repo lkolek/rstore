@@ -1,6 +1,8 @@
 group 'pl.geostreaming'
 version '0.1-SNAPSHOT'
 
+apply plugin: 'eclipse'
+
 buildscript {
 
     ext{

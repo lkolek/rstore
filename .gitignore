@@ -6,3 +6,4 @@ data/*
 */*.iml
 .vertx/
 /rstore-vertx/file-uploads/
+/bin/
