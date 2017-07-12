@@ -54,13 +54,6 @@ class ReplicaVerticle (
 
     val chRepl = ChanneledReplica<(RsOpResp)->Unit>(repl, cocontext)
 
-    init {
-        launch(cocontext){
-            chRepl.outbox.consumeEach{ (op,handler) ->
-                handler.invoke(op);
-            }
-        }
-    }
 
     private companion object {
         val fstCfg = fstBinary.fstCfg
@@ -71,6 +64,13 @@ class ReplicaVerticle (
     }
 
     override fun start(startFuture: Future<Void>?) {
+
+        launch(CurrentVertx){
+            chRepl.outbox.consumeEach{ (op,handler) ->
+                handler.invoke(op);
+            }
+        }
+
         val eb = vertx.eventBus();
         launchFuture{
             val con = eb.consumer<Buffer>(nodeAddr(repl.replId))
@@ -78,7 +78,9 @@ class ReplicaVerticle (
                 val op = fstCfg.asObject(h.body().bytes) as? RsOp
                 when(op){
                     is RsOpReq -> chRepl.inbox.send( op to  { r -> h.reply( Buffer.buffer( fstCfg.asByteArray(r) ))})
-                    is RsHeartbit ->{
+                    is RsHeartbit -> {
+                        // if not connected, introduce
+
 
                     }
                     else -> h.reply( Buffer.buffer( fstCfg.asByteArray( RsOpRes_bad(0, "Bad") ) ))
@@ -87,6 +89,9 @@ class ReplicaVerticle (
         }
 
     }
+
+    fun nodeAddr(nodeId:Int) = busAddr + "/nodes/" + nodeId;
+
 
     suspend fun <T> ReadStream<T>.forEach(block: suspend (T) -> Unit) {
         suspendCoroutine<Unit> { cont: Continuation<Unit> ->
@@ -109,7 +114,6 @@ class ReplicaVerticle (
         }
     }
 
-    fun nodeAddr(nodeId:Int) = busAddr + "/nodes/" + nodeId;
 
 
 }
