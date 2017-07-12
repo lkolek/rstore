@@ -21,7 +21,12 @@ sourceCompatibility = 1.8
 repositories {
     mavenCentral()
     jcenter()
-
+    maven {
+        url "https://raw.githubusercontent.com/lkolek/atomix-vertx/master/repo/snap"
+    }
+//    maven {
+//        url "file://Users/lkolek/.m2/repository"
+//    }
 }
 
 dependencies {
@@ -31,6 +36,10 @@ dependencies {
     compile "io.vertx:vertx-web:$vertx_version"
     compile "de.ruedigermoeller:fst:2.50"
     compile "com.fasterxml.jackson.module:jackson-module-kotlin:2.8.9"
+
+
+    // to enable vertx clustering
+    compile "io.atomix.vertx:atomix-vertx:1.0.8-SNAPSHOT"
 
     compile project(":rstore-core")
 

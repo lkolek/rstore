@@ -1,4 +1,4 @@
-package pl.geostreaming.rstore.core.msg
+package pl.geostreaming.rstore.core.channels
 
 import kotlinx.coroutines.experimental.*
 import kotlinx.coroutines.experimental.channels.Channel
@@ -8,56 +8,51 @@ import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.future.await
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.newSingleThreadContext
-import kotlinx.coroutines.experimental.selects.select
 import pl.geostreaming.rstore.core.model.IdList
 import pl.geostreaming.rstore.core.model.NewId
 import pl.geostreaming.rstore.core.model.ObjId
+import pl.geostreaming.rstore.core.msg.*
 import pl.geostreaming.rstore.core.node.RelicaOpLog
 import pl.geostreaming.rstore.core.node.ReplicaManager
 import java.util.concurrent.CompletableFuture
-import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
-import kotlin.coroutines.experimental.Continuation
 import kotlin.coroutines.experimental.CoroutineContext
-import kotlin.coroutines.experimental.createCoroutine
-import kotlin.coroutines.experimental.suspendCoroutine
 
 /**
  * Created by lkolek on 30.06.2017.
  */
 
-class ChanneledReplica(
+class ChanneledReplica<T:Any>(
         val repl:ReplicaManager,
         val context: CoroutineContext = newSingleThreadContext("Chann r${repl.replId}"),
         val concurrency:Int = 5
 ){
-    private val chIn= Channel<RsOpReq>(10)
-    private val chOut= Channel<RsOpResp>(10)
+    private val chIn= Channel<Pair<RsOpReq,T>>(10)
+    private val chOut= Channel<Pair<RsOpResp,T>>(10)
 
-    val inbox: SendChannel<RsOpReq> = chIn;
-    val outbox: ReceiveChannel<RsOpResp> = chOut;
+    val inbox: SendChannel<Pair<RsOpReq,T>> = chIn;
+    val outbox: ReceiveChannel<Pair<RsOpResp,T>> = chOut;
 
 
     init{
         (1..concurrency).forEach {
             launch(context){
-                chIn.consumeEach{ev ->
-                    val resp = process(ev)
-                    chOut.send(resp)
+                chIn.consumeEach{(ev,t) ->
+                    val resp = process(ev,t)
+                    chOut.send(Pair(resp,t))
                 }
             }
         }
 
     }
 
-    private suspend fun process( ev:RsOp ):RsOpResp= when (ev) {
+    private suspend fun process(ev: RsOp, t:T ): RsOpResp = when (ev) {
         is RsOpReq_queryIds -> RsOpRes_queryIds(ev.opid, repl.queryIds(ev.afertSeqId, ev.cnt))
         is RsOpReq_put -> RsOpRes_put(ev.opid, repl.put(ev.obj))
         is RsOpReq_get -> RsOpRes_get(ev.opid, repl.get(ev.oid))
         is RsOpReq_has -> RsOpRes_has(ev.opid, repl.has(ev.oid))
         is RsOpReq_listenNewIds -> {
             launch(context){
-                repl.listenNewIds().consumeEach{id -> chOut.send(RsOpRes_listenNewIds_send(ev.opid, id))}
+                repl.listenNewIds().consumeEach{id -> chOut.send( Pair(RsOpRes_listenNewIds_send(ev.opid, id), t))}
 
             }
             RsOpRes_listenNewIds(ev.opid)
@@ -142,8 +137,8 @@ open class ChanneledRemote(
 
         handlers.put(q.opid, { r ->
             when(r){
-                is RsOpRes_listenNewIds_send-> ret.send(r.ret)
-                is RsOpRes_listenNewIds-> println("listenNewIds installed")
+                is RsOpRes_listenNewIds_send -> ret.send(r.ret)
+                is RsOpRes_listenNewIds -> println("listenNewIds installed")
                 else -> println("bad listenNewIds")
             }
         })

@@ -10,8 +10,9 @@ import org.junit.Test
 import pl.geostreaming.rstore.core.model.OID
 import pl.geostreaming.rstore.core.model.RsCluster
 import pl.geostreaming.rstore.core.model.RsClusterDef
-import pl.geostreaming.rstore.core.msg.ChanneledRemote
-import pl.geostreaming.rstore.core.msg.ChanneledReplica
+import pl.geostreaming.rstore.core.channels.ChanneledRemote
+import pl.geostreaming.rstore.core.channels.ChanneledReplica
+import pl.geostreaming.rstore.core.util.map
 import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -31,11 +32,11 @@ class ChanneledReplTest :ReplTestBase() {
         val r1 = makeReplInmem(1, cl);
         val r2 = makeReplInmem(2, cl);
 
-        val r1c = ChanneledReplica(r1, r1.context)
-        val r2c = ChanneledReplica(r2, r2.context)
+        val r1c = ChanneledReplica<Unit>(r1, r1.context)
+        val r2c = ChanneledReplica<Unit>(r2, r2.context)
 
-        val r1r = ChanneledRemote(1,r1c.inbox, r1c.outbox)
-        val r2r = ChanneledRemote(2,r2c.inbox, r2c.outbox)
+        val r1r = ChanneledRemote(1, r1c.inbox.map(r1.context) { x -> x.to(Unit) }, r1c.outbox.map(r1.context) { x -> x.first })
+        val r2r = ChanneledRemote(2, r2c.inbox.map(r2.context) { x -> x.to(Unit) }, r2c.outbox.map(r2.context) { x -> x.first })
 
 //        r2.introduceFrom(r1);
 //        r1.introduceFrom(r2);
@@ -109,11 +110,11 @@ class ChanneledReplTest :ReplTestBase() {
 
         val RECORD_SIZE = 10_000;
 
-        val r1c = ChanneledReplica(r1, r1.context)
-        val r2c = ChanneledReplica(r2, r2.context)
+        val r1c = ChanneledReplica<Unit>(r1, r1.context)
+        val r2c = ChanneledReplica<Unit>(r2, r2.context)
 
-        val r1r = ChanneledRemote(1,r1c.inbox, r1c.outbox, r2.context)
-        val r2r = ChanneledRemote(2,r2c.inbox, r2c.outbox, r1.context)
+        val r1r = ChanneledRemote(1, r1c.inbox.map(r1.context) { x -> x to Unit }, r1c.outbox.map(r1.context) { x -> x.first })
+        val r2r = ChanneledRemote(2, r2c.inbox.map(r2.context) { x -> x to Unit }, r2c.outbox.map(r2.context) { x -> x.first })
 
 //        r2.introduceFrom(r1);
 //        r1.introduceFrom(r2);

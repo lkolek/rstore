@@ -2,8 +2,6 @@ package pl.geostreaming.rstore.vertx.websocket
 
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
-import io.vertx.core.http.HttpClientOptions
-import io.vertx.core.json.Json
 import io.vertx.ext.web.Router
 import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.delay
@@ -14,6 +12,7 @@ import pl.geostreaming.rstore.core.model.HeartbitData
 import pl.geostreaming.rstore.core.model.IdList
 import pl.geostreaming.rstore.core.model.NewId
 import pl.geostreaming.rstore.core.model.NotThisNode
+import pl.geostreaming.rstore.core.channels.ChanneledReplica
 import pl.geostreaming.rstore.core.msg.*
 import pl.geostreaming.rstore.core.node.ReplicaManager
 import kotlin.coroutines.experimental.CoroutineContext
@@ -55,7 +54,7 @@ class ReplicaVertexWebsocketNode(
         router.route("/channel").handler { r ->
             println("channel upgrade")
             val socket = r.request().upgrade()
-            val ch = ChanneledReplica(repl, context)
+            val ch = ChanneledReplica<Unit>(repl, context)
 
             socket.binaryMessageHandler { x ->
                 val b= x.bytes
@@ -63,12 +62,12 @@ class ReplicaVertexWebsocketNode(
                 launch(context) {
                     val op = fstCfg.asObject(b) as? RsOpReq;
                     if(op !== null)
-                        ch.inbox.send(op)
+                        ch.inbox.send(op to Unit)
                 }
             }
 
             launch(context) {
-                ch.outbox.consumeEach { op->
+                ch.outbox.consumeEach { (op,_)->
                     val x = fstCfg.asByteArray(op)
                     while (socket.writeQueueFull()) {
                         delay(20)

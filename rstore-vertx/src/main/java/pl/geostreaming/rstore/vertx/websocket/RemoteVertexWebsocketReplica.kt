@@ -3,14 +3,12 @@ package pl.geostreaming.rstore.vertx.websocket
 import io.vertx.core.Vertx
 import io.vertx.core.buffer.Buffer
 import io.vertx.core.http.HttpClientOptions
-import io.vertx.core.json.Json
 import kotlinx.coroutines.experimental.async
 import kotlinx.coroutines.experimental.channels.Channel
 import kotlinx.coroutines.experimental.channels.consumeEach
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.newSingleThreadContext
-import pl.geostreaming.rstore.core.model.NewId
-import pl.geostreaming.rstore.core.msg.ChanneledRemote
+import pl.geostreaming.rstore.core.channels.ChanneledRemote
 import pl.geostreaming.rstore.core.msg.RsOpReq
 import pl.geostreaming.rstore.core.msg.RsOpResp
 import kotlin.coroutines.experimental.CoroutineContext
@@ -25,7 +23,7 @@ class RemoteVertexWebsocketReplica(
 
         replId:Int,
         context: CoroutineContext = newSingleThreadContext("remote Chann r${replId}")
-):ChanneledRemote(
+): ChanneledRemote(
         replId,
         Channel<RsOpReq>(10),
         Channel<RsOpResp>(10),
