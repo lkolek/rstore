@@ -1,5 +1,6 @@
 package pl.geostreaming.rstore.core.msg
 
+import pl.geostreaming.rstore.core.model.HeartbitData
 import pl.geostreaming.rstore.core.model.IdList
 import pl.geostreaming.rstore.core.model.NewId
 import pl.geostreaming.rstore.core.model.ObjId
@@ -33,3 +34,6 @@ data class RsOpRes_listenNewIds_send(override val opid:Long,val ret: NewId):RsOp
 data class RsOpRes_listenNewIds(override val opid:Long):RsOpResp()
 
 data class RsOpRes_bad(override val opid:Long,val ret:String):RsOpResp()
+
+
+data class RsHeartbit(val hb:HeartbitData, override val opid:Long = 0L):RsOp

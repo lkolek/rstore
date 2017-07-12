@@ -79,3 +79,7 @@ interface ReplicaManager : RelicaOpLog{
     fun introduceFrom(remote:RelicaOpLog )
 
 }
+
+interface ReplicaInstance : ReplicaManager{
+    val cl:RsCluster
+}
