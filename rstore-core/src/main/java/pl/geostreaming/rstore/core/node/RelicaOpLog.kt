@@ -73,10 +73,12 @@ interface ReplicaManager : RelicaOpLog{
      * creates new heartbit channel with [HeartbitData] every 1s
      */
     suspend fun heartbit():Channel<HeartbitData>;
+    suspend fun onHeartbit(hb:HeartbitData);
 
     fun close();
 
     fun introduceFrom(remote:RelicaOpLog )
+    fun disconnectFrom(remote:RelicaOpLog )
 
 }
 

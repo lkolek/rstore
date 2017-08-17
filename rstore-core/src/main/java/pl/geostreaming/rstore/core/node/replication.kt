@@ -164,6 +164,13 @@ class Replicator(
     private val fullyReplicatedToStorage = db.atomicLong("fulltyReplicatedTo.${remoteId}").createOrOpen();
 
 
+    suspend fun close():Unit= run(context+myjob){
+        myjob.cancel()
+        db.close();
+        replFinished.close();
+        Unit;
+    }
+
     private val myjob = Job()
     /** last known seqId from remote replica */
 
@@ -196,12 +203,14 @@ class Replicator(
     init {
 //        launch(context) {  processHeartbit() }
         /* new ids */
-        launch(context) {  processNewOids() }
-        launch(context) {  while(true) { queryLackingIds(); delay(100); }}
+        launch(context+myjob) {  processNewOids() }
+        launch(context+myjob) {  while(true) { queryLackingIds(); delay(100); }}
 
         /* work on ids */
-        launch(context) {  processReplication() }
+        launch(context+myjob) {  processReplication() }
     }
+
+    suspend fun updateLastSeq(seq:Long) = run(context+myjob){ lastSeqIdRemote = seq }
 
     val replFinished   = ConflatedChannel<Boolean>();
     private suspend fun processReplication(){
@@ -212,7 +221,7 @@ class Replicator(
 
         // concurrent replicators
         (1..concurrentGets).forEach {
-            launch(context){
+            launch(context+myjob){
                 try {
                     while (true) {
                         select<Unit> {
@@ -232,7 +241,7 @@ class Replicator(
             }
         }
 
-        launch(context){
+        launch(context+myjob){
             while(!replFinished.isClosedForReceive){
                 replFinished.receive();
                 delay(100)
@@ -351,7 +360,7 @@ class Replicator(
     /**
      * How far replication is behind of src replica
      */
-    suspend fun behind() = run(context){this.lastSeqIdRemote - fullyReplicatedTo}
-    suspend fun report() = run(context){ "r${remote.replId}->${myReplica.replId} lseq:${lastSeqIdRemote}, frt:${fullyReplicatedTo}" }
+    suspend fun behind() = run(context+myjob){this.lastSeqIdRemote - fullyReplicatedTo}
+    suspend fun report() = run(context+myjob){ "r${remote.replId}->${myReplica.replId} lseq:${lastSeqIdRemote}, frt:${fullyReplicatedTo}" }
 
 }

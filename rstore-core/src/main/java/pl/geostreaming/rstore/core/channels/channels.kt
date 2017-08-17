@@ -133,7 +133,8 @@ open class ChanneledRemote(
 
     override suspend fun listenNewIds():Channel<NewId> =run(context){
         val q = RsOpReq_listenNewIds(opseq);
-        val ret = Channel<NewId>(100);
+        val ret = Channel<NewId>(100); // TODO: problem?
+        println("listenNewIds opid=${q.opid}")
 
         handlers.put(q.opid, { r ->
             when(r){

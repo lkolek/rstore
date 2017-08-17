@@ -28,12 +28,13 @@ import kotlin.collections.ArrayList
  */
 class ReplicaMapdbImpl (
         override val replId:Int,
-        val cl:RsCluster,
+        override val cl:RsCluster,
         val db:DB,
         val context:CoroutineContext = newSingleThreadContext("Relica ${replId}")
 
-) : RelicaOpLog, ReplicaManager {
+) : ReplicaInstance {
     private val myjob = Job()
+
     val objs = db.hashMap("objs")
         .keySerializer(org.mapdb.Serializer.BYTE_ARRAY)
         .valueSerializer(org.mapdb.serializer.SerializerCompressionWrapper(org.mapdb.Serializer.BYTE_ARRAY))
@@ -50,7 +51,7 @@ class ReplicaMapdbImpl (
     val COMMIT_DELAY:Long = 1500;
     private var toCommit = false;
 
-    private val newIds = Channel<NewId>(100);
+    private val newIds = Channel<NewId>(10);
     private val newIdsListeners = ArrayList<Channel<NewId>>();
     private val heartbitListeners = ArrayList<Channel<HeartbitData>>();
 
@@ -63,6 +64,7 @@ class ReplicaMapdbImpl (
             newIdsListeners.forEach { r ->
                 try {
                     /* ? offer */
+                    // how to handle slow consumers?
                     r.send(id)
                 } catch( ex:Exception ){
                     logger.warn { "newId sending exception:${ex.message}" }
@@ -74,7 +76,7 @@ class ReplicaMapdbImpl (
 
 
     suspend override fun listenNewIds():Channel<NewId> = own{
-        val ret = Channel<NewId>(100);
+        val ret = Channel<NewId>(10);
         newIdsListeners.add(ret);
         ret;
     }
@@ -111,7 +113,10 @@ class ReplicaMapdbImpl (
             seq2id.put(seqId, oid);
 
             delayedCommit();
-            newIds.offer( NewId(seqId,oid));
+
+            // TODO: new ids must be send! should we wait for that?
+//            newIds.offer( NewId(seqId,oid));
+            newIds.send( NewId(seqId,oid));
             // TODO: should we wait for ending ?
         }
         oid;
@@ -182,6 +187,16 @@ class ReplicaMapdbImpl (
         // TODO: reintroduce
     }
 
+    override fun disconnectFrom(remote: RelicaOpLog) {
+        launch(context) {
+            logger.info { "r${replId} - disconnect from ${remote.replId}" }
+            remoteReplications[remote.replId]?.let { rr ->
+                rr.second.close();
+                remoteReplications.remove(remote.replId);
+            }
+        }
+    }
+
     private val xxcnt = AtomicLong()
     protected suspend fun <T> own(block: suspend ()->T):T = run(context+myjob){
 //        val no = xxcnt.incrementAndGet()
@@ -189,5 +204,12 @@ class ReplicaMapdbImpl (
         val ret = block.invoke()
 //        println("    --> ${no}")
         ret
+    }
+
+    suspend override fun onHeartbit(hb: HeartbitData) {
+        // update seq numbers if replication
+        if(replId != hb.replId && remoteReplications.containsKey(hb.replId)){
+            remoteReplications[hb.replId]?.second?.updateLastSeq(hb.lastSeq)
+        }
     }
 }

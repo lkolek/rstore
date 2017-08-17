@@ -25,8 +25,8 @@ repositories {
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$kotlin_version"
-    compile "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$rootProject.ext.kotlin_version"
+    compile "org.jetbrains.kotlin:kotlin-reflect:$rootProject.ext.kotlin_version"
     compile "io.vertx:vertx-core:$vertx_version"
     compile "io.vertx:vertx-web:$vertx_version"
     compile "de.ruedigermoeller:fst:2.50"

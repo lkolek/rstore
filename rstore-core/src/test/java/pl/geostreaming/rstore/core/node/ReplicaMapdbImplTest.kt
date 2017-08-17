@@ -6,6 +6,7 @@ import kotlinx.coroutines.experimental.delay
 import kotlinx.coroutines.experimental.launch
 import kotlinx.coroutines.experimental.runBlocking
 import org.junit.*
+import org.mapdb.DB
 import org.mapdb.DBMaker
 import pl.geostreaming.rstore.core.model.ObjId
 import pl.geostreaming.rstore.core.model.RsCluster
@@ -52,22 +53,28 @@ open class ReplTestBase {
     fun randByteArray(size:Int):ByteArray{
         val ba = ByteArray(size);
         val bb = ByteBuffer.wrap(ba)
-        (0 until size/4).forEach { i-> bb.putInt(i, rnd.nextInt()) }
+        (0 until size/4).forEach { i-> bb.putInt(i*4, rnd.nextInt()) }
         return ba;
     }
 
-    fun makeReplInmem(id:Int, cl:RsCluster, noMt:Boolean = false)= ReplicaMapdbImpl(id,cl,
+    fun makeDb(id:Int, inMem:Boolean = true, noMt:Boolean = false):DB{
+        return if(inMem){
             DBMaker.memoryDirectDB().apply {
                 if(noMt){
                     concurrencyDisable()
                 }
-            }.make());
-    fun makeReplFile(id:Int, cl:RsCluster)= ReplicaMapdbImpl(id,cl,
+            }.make()
+        } else {
             DBMaker.fileDB(location+"/db${id}.db").apply {
                 fileMmapEnable()
                 closeOnJvmShutdown()
 
-            }.make());
+            }.make()
+        }
+    }
+
+    fun makeReplInmem(id:Int, cl:RsCluster, noMt:Boolean = false)= ReplicaMapdbImpl(id,cl, makeDb(id,true,noMt) );
+    fun makeReplFile(id:Int, cl:RsCluster)= ReplicaMapdbImpl(id,cl, makeDb(id,false) );
 
     fun ObjId.arrEquals( other:ObjId) = Arrays.equals(this,other)
 
